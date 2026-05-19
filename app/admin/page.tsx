@@ -1,4 +1,6 @@
 import { getAllRooms } from "@/lib/dal/rooms";
+
+export const dynamic = "force-dynamic";
 import { getUnpaidThisMonth } from "@/lib/dal/payments";
 import { getResidents } from "@/lib/dal/residents";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

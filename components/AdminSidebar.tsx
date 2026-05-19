@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { ModeToggle } from "@/components/ModeToggle";
 
 const navItems = [
   { href: "/admin",           label: "Dashboard",   icon: LayoutDashboard, exact: true },
@@ -81,8 +82,9 @@ export default function AdminSidebar() {
 
       <div className="mx-4 h-px bg-sidebar-border" />
 
-      {/* Logout */}
-      <div className="px-3 py-3">
+      {/* Footer actions */}
+      <div className="px-3 py-3 space-y-0.5">
+        <ModeToggle />
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/60 hover:bg-destructive/10 hover:text-destructive transition-all duration-150"
@@ -94,3 +96,4 @@ export default function AdminSidebar() {
     </aside>
   );
 }
+

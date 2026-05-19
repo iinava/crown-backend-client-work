@@ -39,14 +39,19 @@ export default async function AdminDashboard() {
 
       {/* Banner */}
       {unpaid.length > 0 && (
-        <div className="flex items-center gap-2.5 rounded-md border px-3.5 py-2.5 text-sm">
-          <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
-          <span className="font-medium">{unpaid.length} unpaid this month</span>
-          <span className="text-muted-foreground truncate min-w-0">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 sm:px-5 sm:py-4 text-sm text-destructive-foreground shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span className="font-semibold">{unpaid.length} unpaid this month</span>
+          </div>
+          <span className="text-destructive-foreground/80 truncate min-w-0 flex-1 text-xs sm:text-sm">
             — {unpaid.slice(0, 3).map((p) => p.resident_name).join(", ")}
             {unpaid.length > 3 && ` and ${unpaid.length - 3} more`}
           </span>
-          <Link href="/admin/payments" className="ml-auto shrink-0 text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline">
+          <Link 
+            href="/admin/payments" 
+            className="sm:ml-auto shrink-0 text-xs font-medium text-destructive-foreground/90 hover:text-destructive-foreground underline-offset-4 hover:underline self-start sm:self-auto"
+          >
             View all
           </Link>
         </div>
@@ -102,7 +107,7 @@ export default async function AdminDashboard() {
             Manage rooms
           </Link>
         </div>
-        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {rooms.map((room) => {
             const pct    = Math.round((room.occupied_count / room.capacity) * 100);
             const isFull = room.occupied_count >= room.capacity;

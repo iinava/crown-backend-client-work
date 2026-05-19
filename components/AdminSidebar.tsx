@@ -26,7 +26,7 @@ const navItems = [
   { href: "/admin/users",     label: "Admin Users",  icon: ShieldCheck },
 ];
 
-export default function AdminSidebar() {
+export default function AdminSidebar({ className }: { className?: string }) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -38,8 +38,9 @@ export default function AdminSidebar() {
   }
 
   return (
-    <aside className="w-60 bg-sidebar flex flex-col h-full shrink-0 border-r border-sidebar-border">
+    <aside className={cn("w-60 bg-sidebar flex flex-col h-full shrink-0 border-r border-sidebar-border", className)}>
       {/* Brand */}
+
       <div className="px-5 py-5 flex items-center gap-3">
         <div className="h-8 w-8 rounded-lg bg-sidebar-primary/20 flex items-center justify-center shrink-0">
           <Building2 className="h-4 w-4 text-sidebar-primary" />

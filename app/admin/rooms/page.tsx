@@ -20,7 +20,7 @@ export default async function RoomsPage() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Rooms & Beds</h1>
           <p className="text-muted-foreground text-sm mt-1">
@@ -28,6 +28,7 @@ export default async function RoomsPage() {
           </p>
         </div>
       </div>
+
 
       {/* Per-floor sections */}
       {Object.entries(byFloor).map(([floorLabel, floorRooms]) => {

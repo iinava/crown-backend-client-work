@@ -2,8 +2,7 @@ import { getAllRooms } from "@/lib/dal/rooms";
 import { getUnpaidThisMonth } from "@/lib/dal/payments";
 import { getResidents } from "@/lib/dal/residents";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+
 import { BedDouble, Users, AlertCircle, CheckCircle2, DoorOpen, TrendingDown } from "lucide-react";
 import Link from "next/link";
 
@@ -63,32 +62,34 @@ export default async function AdminDashboard() {
 
       {/* Alerts */}
       {unpaid.length > 0 && (
-        <Alert variant="destructive" className="border-destructive/30 bg-destructive/5">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>{unpaid.length} unpaid payment{unpaid.length > 1 ? "s" : ""} this month</AlertTitle>
-          <AlertDescription>
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {unpaid.map((p) => (
-                <Link key={p.id} href={`/admin/residents/${p.resident_id}`}>
-                  <Badge variant="outline" className="cursor-pointer border-destructive/40 text-destructive hover:bg-destructive/10">
-                    {p.resident_name}
-                  </Badge>
-                </Link>
-              ))}
-            </div>
-          </AlertDescription>
-        </Alert>
+        <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-destructive/30 bg-destructive/5 text-sm">
+          <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
+          <span className="font-medium text-destructive shrink-0">
+            {unpaid.length} unpaid
+          </span>
+          <span className="text-muted-foreground truncate min-w-0">
+            {unpaid.slice(0, 3).map((p) => p.resident_name).join(", ")}
+            {unpaid.length > 3 && (
+              <span className="text-destructive/70"> and {unpaid.length - 3} more</span>
+            )}
+          </span>
+          <Link
+            href="/admin/payments"
+            className="ml-auto shrink-0 text-xs font-medium text-destructive hover:underline"
+          >
+            View all →
+          </Link>
+        </div>
       )}
 
       {unpaid.length === 0 && totalResidents > 0 && (
-        <Alert className="border-success/30 bg-success/5 text-success">
-          <CheckCircle2 className="h-4 w-4" />
-          <AlertTitle className="text-success">All payments collected for {monthLabel}</AlertTitle>
-          <AlertDescription className="text-success/80">
-            All active residents are up to date.
-          </AlertDescription>
-        </Alert>
+        <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-success/30 bg-success/5 text-sm">
+          <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
+          <span className="font-medium text-success">All paid up</span>
+          <span className="text-muted-foreground">All residents are up to date for {monthLabel}</span>
+        </div>
       )}
+
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

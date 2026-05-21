@@ -126,7 +126,7 @@ export default function BedGrid({ beds, roomNumber, onRefresh }: BedGridProps) {
         {/* Legend */}
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
-            <span className="inline-block w-3 h-3 rounded-sm bg-primary/20 border border-primary/30" />
+            <span className="inline-block w-3 h-3 rounded-sm bg-success/20 border border-success/40" />
             Occupied
           </span>
           <span className="flex items-center gap-1">
@@ -147,14 +147,14 @@ export default function BedGrid({ beds, roomNumber, onRefresh }: BedGridProps) {
                     "flex flex-col items-center justify-center p-2 rounded-md border text-xs font-medium transition-all hover:scale-105 hover:shadow-sm",
                     "w-[calc(25%-6px)] min-w-[80px] min-h-[64px]",
                     bed.is_occupied
-                      ? "bg-primary/10 border-primary/30 text-primary"
-                      : "bg-background border-border text-muted-foreground hover:border-primary/50"
+                      ? "bg-success/15 border-success/40 text-success"
+                      : "bg-muted/30 border-border/50 text-muted-foreground/60 hover:border-primary/50"
                   )}
                 >
                   <BedDouble className="h-4 w-4 mb-1 shrink-0" />
                   <span className="font-semibold">{bed.number.split("-")[1]}</span>
                   {bed.is_occupied && bed.resident_name ? (
-                    <span className="truncate w-full text-center text-[10px] leading-tight mt-0.5 text-primary/80">
+                    <span className="truncate w-full text-center text-[10px] leading-tight mt-0.5 text-success/80">
                       {bed.resident_name.split(" ")[0]}
                     </span>
                   ) : (

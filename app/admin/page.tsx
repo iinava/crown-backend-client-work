@@ -39,20 +39,20 @@ export default async function AdminDashboard() {
 
       {/* Banner */}
       {unpaid.length > 0 && (
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 sm:px-5 sm:py-4 text-sm text-destructive-foreground shadow-sm">
-          <div className="flex items-center gap-2.5">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 rounded-xl border border-destructive/40 bg-destructive/15 px-4 py-3 sm:px-5 sm:py-4 text-sm shadow-sm">
+          <div className="flex items-center gap-2.5 text-destructive">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span className="font-semibold">{unpaid.length} unpaid this month</span>
           </div>
-          <span className="text-destructive-foreground/80 truncate min-w-0 flex-1 text-xs sm:text-sm">
+          <span className="text-foreground/80 truncate min-w-0 flex-1 text-xs sm:text-sm">
             — {unpaid.slice(0, 3).map((p) => p.resident_name).join(", ")}
             {unpaid.length > 3 && ` and ${unpaid.length - 3} more`}
           </span>
           <Link 
             href="/admin/payments" 
-            className="sm:ml-auto shrink-0 text-xs font-medium text-destructive-foreground/90 hover:text-destructive-foreground underline-offset-4 hover:underline self-start sm:self-auto"
+            className="sm:ml-auto shrink-0 text-xs font-medium text-destructive hover:text-destructive/80 underline-offset-4 hover:underline self-start sm:self-auto"
           >
-            View all
+            View all →
           </Link>
         </div>
       )}

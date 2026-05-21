@@ -65,7 +65,8 @@ export interface BedWithResident {
 export async function getRoomWithBeds(roomId: number): Promise<BedWithResident[]> {
   const rows = await sql`
     SELECT 
-      b.id, b.room_id, b.number, b.position, b.is_occupied,
+      b.id, b.room_id, b.number, b.position,
+      (ba.id IS NOT NULL) AS is_occupied,
       res.id AS resident_id,
       res.name AS resident_name,
       res.phone AS resident_phone,

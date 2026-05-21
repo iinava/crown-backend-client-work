@@ -8,12 +8,20 @@ import { sendReminder, normalizePhone } from "@/lib/sms";
 import { isAuthenticated } from "@/lib/auth";
 import { NextRequest } from "next/server";
 
+// Max calls per cron invocation (matches Vobiz concurrent limit)
+const BATCH_SIZE = 3;
+// Seconds between each call in a batch (let Vobiz dial + ring)
+const CALL_GAP_MS = 5_000;
+
 /**
- * Daily cron endpoint — runs every day at 9:00 AM IST.
+ * Daily cron endpoint — runs every 2 minutes from 9:00-10:00 AM IST.
  *
- * What it does:
+ * Each invocation:
  * 1. Recalculates fines for ALL overdue unpaid payments
- * 2. Calls overdue residents via Vobiz voice TTS (1 call per day max)
+ * 2. Calls up to 3 overdue residents who haven't been called today
+ *
+ * With dedup, 100 residents → ~34 cron runs × 2 min = ~68 min to call everyone.
+ * Each run finishes in <20 seconds — well within Vercel's timeout.
  *
  * Auth: Vercel Cron (Bearer CRON_SECRET) OR admin session (for Run Now button)
  */
@@ -40,6 +48,9 @@ export async function GET(request: NextRequest) {
     let skipped = 0;
 
     for (const resident of overdueResidents) {
+      // Stop if we've hit the batch limit
+      if (sent + failed >= BATCH_SIZE) break;
+
       // Dedup: 1 call per resident per day
       const alreadyNotified = await wasNotifiedToday(resident.resident_id, "voice");
       if (alreadyNotified) {
@@ -70,7 +81,14 @@ export async function GET(request: NextRequest) {
 
       if (result.success) sent++;
       else failed++;
+
+      // Small gap between calls to avoid overwhelming Vobiz
+      if (sent + failed < BATCH_SIZE) {
+        await new Promise((r) => setTimeout(r, CALL_GAP_MS));
+      }
     }
+
+    const remaining = overdueResidents.length - skipped - sent - failed;
 
     return Response.json({
       success: true,
@@ -79,6 +97,7 @@ export async function GET(request: NextRequest) {
       remindersSent: sent,
       remindersFailed: failed,
       skippedAlreadyNotified: skipped,
+      remainingForNextRun: remaining,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

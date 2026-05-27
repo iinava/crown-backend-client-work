@@ -14,6 +14,8 @@ import {
 import { toast } from "sonner";
 import Link from "next/link";
 import MonthPicker from "@/components/MonthPicker";
+import { useHostel } from "@/lib/hostel-context";
+import { Input } from "@/components/ui/input";
 
 interface Payment {
   id: number;
@@ -58,18 +60,24 @@ function PaymentsInner() {
   const [generating, setGenerating]       = useState(false);
   const [recalculating, setRecalculating] = useState(false);
   const [markingId, setMarkingId]         = useState<number | null>(null);
+  const [editingAmountId, setEditingAmountId] = useState<number | null>(null);
+  const [editField, setEditField] = useState<"amount" | "fine_amount">("amount");
+  const [editValue, setEditValue]   = useState("");
+  const { hostelParam, isLoading: hostelLoading } = useHostel();
 
   const fetchPayments = useCallback(async () => {
+    if (hostelLoading) return;
     setLoading(true);
     try {
-      const res  = await fetch(`/api/payments?month=${month}-01&limit=200`);
+      const hq = hostelParam ? `&hostel=${hostelParam}` : "";
+      const res  = await fetch(`/api/payments?month=${month}-01&limit=200${hq}`);
       const data = await res.json();
       setPayments(data.data ?? []);
       setTotal(data.total ?? 0);
     } finally {
       setLoading(false);
     }
-  }, [month]);
+  }, [month, hostelParam, hostelLoading]);
 
   useEffect(() => { fetchPayments(); }, [fetchPayments]);
 
@@ -79,7 +87,7 @@ function PaymentsInner() {
       const res  = await fetch("/api/payments/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month: month + "-01" }),
+        body: JSON.stringify({ month: month + "-01", hostel: hostelParam || undefined }),
       });
       const data = await res.json();
       if (data.generated === 0) {
@@ -122,6 +130,35 @@ function PaymentsInner() {
     } finally {
       setMarkingId(null);
     }
+  }
+
+  async function saveField(payment: Payment) {
+    const val = Number(editValue);
+    if (isNaN(val) || val < 0) {
+      setEditingAmountId(null);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/payments/${payment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [editField]: val }),
+      });
+      if (res.ok) {
+        toast.success(`${editField === "amount" ? "Rent" : "Fine"} updated for ${payment.resident_name}`);
+        fetchPayments();
+      } else {
+        toast.error("Failed to update");
+      }
+    } finally {
+      setEditingAmountId(null);
+    }
+  }
+
+  function startEdit(paymentId: number, field: "amount" | "fine_amount", currentValue: number) {
+    setEditingAmountId(paymentId);
+    setEditField(field);
+    setEditValue(String(currentValue));
   }
 
   const unpaid     = payments.filter((p) => !p.paid);
@@ -322,12 +359,44 @@ function PaymentsInner() {
                     </TableCell>
 
                     <TableCell className="text-sm text-muted-foreground">
-                      ₹{base.toLocaleString("en-IN")}
+                      {editingAmountId === p.id && editField === "amount" ? (
+                        <Input
+                          type="number"
+                          className="h-7 w-24 text-sm"
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onBlur={() => saveField(p)}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveField(p); if (e.key === "Escape") setEditingAmountId(null); }}
+                          autoFocus
+                        />
+                      ) : (
+                        <span
+                          className="cursor-pointer hover:text-foreground hover:underline underline-offset-2 transition-colors"
+                          onClick={() => startEdit(p.id, "amount", base)}
+                          title="Click to edit rent"
+                        >
+                          ₹{base.toLocaleString("en-IN")}
+                        </span>
+                      )}
                     </TableCell>
 
                     <TableCell>
-                      {fine > 0 ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-warning">
+                      {editingAmountId === p.id && editField === "fine_amount" ? (
+                        <Input
+                          type="number"
+                          className="h-7 w-24 text-sm"
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onBlur={() => saveField(p)}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveField(p); if (e.key === "Escape") setEditingAmountId(null); }}
+                          autoFocus
+                        />
+                      ) : fine > 0 ? (
+                        <span
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-warning cursor-pointer hover:underline underline-offset-2"
+                          onClick={() => startEdit(p.id, "fine_amount", fine)}
+                          title="Click to edit fine"
+                        >
                           <Flame className="h-3 w-3" />
                           +₹{fine.toLocaleString("en-IN")}
                           {p.days_overdue > 0 && (
@@ -337,7 +406,13 @@ function PaymentsInner() {
                           )}
                         </span>
                       ) : (
-                        <span className="text-muted-foreground/40 text-xs">—</span>
+                        <span
+                          className="text-muted-foreground/40 text-xs cursor-pointer hover:text-muted-foreground"
+                          onClick={() => startEdit(p.id, "fine_amount", 0)}
+                          title="Click to add fine"
+                        >
+                          —
+                        </span>
                       )}
                     </TableCell>
 

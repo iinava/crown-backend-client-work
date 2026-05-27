@@ -17,7 +17,7 @@ export interface OverdueResident {
  * Get all residents who have overdue unpaid payments AND a phone number.
  * Returns one row per overdue payment.
  */
-export async function getOverdueResidents(): Promise<OverdueResident[]> {
+export async function getOverdueResidents(hostelId?: number): Promise<OverdueResident[]> {
   const rows = await sql`
     SELECT
       r.id            AS resident_id,
@@ -31,11 +31,16 @@ export async function getOverdueResidents(): Promise<OverdueResident[]> {
       (p.amount::numeric + p.fine_amount::numeric)::numeric   AS total_due
     FROM payments p
     JOIN residents r ON r.id = p.resident_id
+    LEFT JOIN bed_assignments ba ON ba.resident_id = r.id AND ba.vacated_at IS NULL
+    LEFT JOIN beds b ON b.id = ba.bed_id
+    LEFT JOIN rooms rm ON rm.id = b.room_id
+    LEFT JOIN floors fl ON fl.id = rm.floor_id
     WHERE p.paid = false
       AND p.due_date < NOW()
       AND r.phone IS NOT NULL
       AND r.phone != ''
       AND r.is_active = true
+      AND (${hostelId ?? null}::int IS NULL OR fl.hostel_id = ${hostelId ?? null})
     ORDER BY days_overdue DESC
   `;
   return rows as OverdueResident[];

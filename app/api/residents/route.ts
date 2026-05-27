@@ -1,4 +1,5 @@
 import { getResidents, createResident } from "@/lib/dal/residents";
+import { getHostelBySlug } from "@/lib/dal/hostels";
 import { NextRequest } from "next/server";
 
 export async function GET(request: NextRequest) {
@@ -7,8 +8,15 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(Number(searchParams.get("limit") ?? "20"), 100);
   const offset = Number(searchParams.get("offset") ?? "0");
   const activeOnly = searchParams.get("active_only") === "true";
+  const hostelSlug = searchParams.get("hostel") ?? undefined;
 
-  const result = await getResidents({ search, limit, offset, activeOnly });
+  let hostelId: number | undefined;
+  if (hostelSlug) {
+    const hostel = await getHostelBySlug(hostelSlug);
+    hostelId = hostel?.id;
+  }
+
+  const result = await getResidents({ search, limit, offset, activeOnly, hostelId });
   return Response.json(result);
 }
 

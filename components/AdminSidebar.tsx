@@ -17,6 +17,8 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ModeToggle } from "@/components/ModeToggle";
+import { HostelSwitcher } from "@/components/HostelSwitcher";
+import { useHostel } from "@/lib/hostel-context";
 
 const navItems = [
   { href: "/admin",           label: "Dashboard",   icon: LayoutDashboard, exact: true },
@@ -48,12 +50,17 @@ export default function AdminSidebar({ className }: { className?: string }) {
           <Building2 className="h-4 w-4 text-sidebar-primary" />
         </div>
         <div>
-          <p className="font-semibold text-sm text-sidebar-foreground leading-tight">Crown Hostel</p>
+          <p className="font-semibold text-sm text-sidebar-foreground leading-tight">Crown Hostels</p>
           <p className="text-[11px] text-sidebar-foreground/50 leading-tight mt-0.5">Admin Panel</p>
         </div>
       </div>
 
       <div className="mx-4 h-px bg-sidebar-border" />
+
+      {/* Hostel Switcher */}
+      <div className="px-1 pt-3">
+        <HostelSwitcher />
+      </div>
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-3 space-y-0.5">

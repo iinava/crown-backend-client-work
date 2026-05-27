@@ -1,31 +1,81 @@
-import { getAllRooms } from "@/lib/dal/rooms";
-import { getUnpaidThisMonth } from "@/lib/dal/payments";
-import { getResidents } from "@/lib/dal/residents";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useHostel } from "@/lib/hostel-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import { BedDouble, Users, DoorOpen, TrendingDown, AlertCircle, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 
-export default async function AdminDashboard() {
-  const [rooms, unpaid, { total: totalResidents }] = await Promise.all([
-    getAllRooms(),
-    getUnpaidThisMonth(),
-    getResidents({ activeOnly: true }),
-  ]);
+interface Room {
+  id: number;
+  number: string;
+  capacity: number;
+  occupied_count: number;
+  floor_label: string;
+  room_type: string;
+}
 
-  const totalBeds    = rooms.reduce((a, r) => a + r.capacity, 0);
+interface Unpaid {
+  resident_name: string;
+}
+
+export default function AdminDashboard() {
+  const { hostelParam, label, isLoading: hostelLoading } = useHostel();
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [unpaid, setUnpaid] = useState<Unpaid[]>([]);
+  const [totalResidents, setTotalResidents] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (hostelLoading) return;
+    setLoading(true);
+    const hq = hostelParam ? `&hostel=${hostelParam}` : "";
+
+    Promise.all([
+      fetch(`/api/rooms?_=1${hq}`).then((r) => r.json()),
+      fetch(`/api/payments?paid=false&month=${new Date().toISOString().slice(0, 7) + "-01"}${hq}`).then((r) => r.json()),
+      fetch(`/api/residents?active_only=true&limit=1${hq}`).then((r) => r.json()),
+    ]).then(([roomData, payData, resData]) => {
+      setRooms(roomData);
+      setUnpaid(payData.data ?? []);
+      setTotalResidents(resData.total ?? 0);
+      setLoading(false);
+    });
+  }, [hostelParam, hostelLoading]);
+
+  const totalBeds = rooms.reduce((a, r) => a + r.capacity, 0);
   const occupiedBeds = rooms.reduce((a, r) => a + r.occupied_count, 0);
-  const vacantBeds   = totalBeds - occupiedBeds;
-  const monthLabel   = new Date().toLocaleString("en-IN", { month: "long", year: "numeric" });
+  const vacantBeds = totalBeds - occupiedBeds;
+  const monthLabel = new Date().toLocaleString("en-IN", { month: "long", year: "numeric" });
   const occupancyPct = totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0;
 
   const stats = [
-    { label: "Total Beds",  value: totalBeds,      sub: `${rooms.length} rooms`,          icon: BedDouble    },
-    { label: "Occupied",    value: occupiedBeds,   sub: `${occupancyPct}% occupancy`,     icon: Users        },
-    { label: "Vacant",      value: vacantBeds,     sub: `${vacantBeds} beds free`,        icon: DoorOpen     },
-    { label: "Unpaid",      value: unpaid.length,  sub: monthLabel,                       icon: TrendingDown },
+    { label: "Total Beds", value: totalBeds, sub: `${rooms.length} rooms`, icon: BedDouble },
+    { label: "Occupied", value: occupiedBeds, sub: `${occupancyPct}% occupancy`, icon: Users },
+    { label: "Vacant", value: vacantBeds, sub: `${vacantBeds} beds free`, icon: DoorOpen },
+    { label: "Unpaid", value: unpaid.length, sub: monthLabel, icon: TrendingDown },
   ];
+
+  const roomTypeBadge = (type: string) => {
+    if (type === "dormitory") return <Badge variant="outline" className="text-[9px] px-1 py-0 bg-warning/10 text-warning border-warning/30">Dorm</Badge>;
+    if (type === "ac") return <Badge variant="outline" className="text-[9px] px-1 py-0 bg-primary/10 text-primary border-primary/30">AC</Badge>;
+    return null;
+  };
+
+  if (loading || hostelLoading) {
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div><div className="h-7 w-40 rounded bg-muted" /><div className="h-4 w-64 rounded bg-muted/60 mt-2" /></div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}><CardContent className="p-4 space-y-3"><div className="h-3 w-16 rounded bg-muted" /><div className="h-6 w-12 rounded bg-muted" /></CardContent></Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -33,7 +83,7 @@ export default async function AdminDashboard() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Crown Hostel — {monthLabel}
+          {label} — {monthLabel}
         </p>
       </div>
 
@@ -109,13 +159,16 @@ export default async function AdminDashboard() {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {rooms.map((room) => {
-            const pct    = Math.round((room.occupied_count / room.capacity) * 100);
+            const pct = Math.round((room.occupied_count / room.capacity) * 100);
             const isFull = room.occupied_count >= room.capacity;
             return (
               <Link key={room.id} href={`/admin/rooms/${room.id}`}>
                 <Card className="cursor-pointer hover:bg-accent transition-colors">
                   <CardContent className="p-3 text-center">
-                    <p className="font-medium text-sm">{room.number}</p>
+                    <div className="flex items-center justify-center gap-1">
+                      <p className="font-medium text-sm">{room.number}</p>
+                      {roomTypeBadge(room.room_type)}
+                    </div>
                     <p className="text-[10px] text-muted-foreground">{room.floor_label}</p>
                     <Progress value={pct} className="h-1 mt-2" />
                     <p className="text-[11px] text-muted-foreground mt-1.5 tabular-nums">

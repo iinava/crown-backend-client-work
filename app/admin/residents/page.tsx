@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight, Users, CheckCircle2, Clock, BedDouble } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useHostel } from "@/lib/hostel-context";
 
 interface Resident {
   id: number;
@@ -38,6 +39,7 @@ export default function ResidentsPage() {
   const [editing, setEditing] = useState<Resident | null>(null);
   const [saving, setSaving] = useState(false);
   const [defaultRate, setDefaultRate] = useState("0");
+  const { hostelParam, isLoading: hostelLoading } = useHostel();
 
   const [form, setForm] = useState({
     name: "", phone: "", email: "", id_number: "",
@@ -45,10 +47,12 @@ export default function ResidentsPage() {
   });
 
   const fetchResidents = useCallback(async () => {
+    if (hostelLoading) return;
     setLoading(true);
     try {
+      const hq = hostelParam ? `&hostel=${hostelParam}` : "";
       const res = await fetch(
-        `/api/residents?search=${encodeURIComponent(search)}&limit=${LIMIT}&offset=${offset}`
+        `/api/residents?search=${encodeURIComponent(search)}&limit=${LIMIT}&offset=${offset}${hq}`
       );
       const data = await res.json();
       setResidents(data.data);
@@ -56,7 +60,7 @@ export default function ResidentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, offset]);
+  }, [search, offset, hostelParam, hostelLoading]);
 
   useEffect(() => { fetchResidents(); }, [fetchResidents]);
 

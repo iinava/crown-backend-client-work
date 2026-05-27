@@ -4,6 +4,7 @@ export interface Floor {
   id: number;
   name: string;
   label: string;
+  hostel_id: number;
 }
 
 export interface Room {
@@ -13,24 +14,32 @@ export interface Room {
   label: string;
   is_full: boolean;
   capacity: number;
+  room_type: string;
   created_at: string;
   floor_name?: string;
   floor_label?: string;
+  hostel_id?: number;
+  hostel_name?: string;
   occupied_count: number;
 }
 
-export async function getAllRooms(): Promise<Room[]> {
+export async function getAllRooms(hostelId?: number): Promise<Room[]> {
   const rows = await sql`
     SELECT 
       r.*, 
+      r.room_type,
       f.name AS floor_name, 
       f.label AS floor_label,
+      f.hostel_id,
+      h.name AS hostel_name,
       COUNT(ba.id)::int AS occupied_count
     FROM rooms r
     JOIN floors f ON f.id = r.floor_id
+    JOIN hostels h ON h.id = f.hostel_id
     LEFT JOIN beds b ON b.room_id = r.id
     LEFT JOIN bed_assignments ba ON ba.bed_id = b.id AND ba.vacated_at IS NULL
-    GROUP BY r.id, f.name, f.label
+    WHERE (${hostelId ?? null}::int IS NULL OR f.hostel_id = ${hostelId ?? null})
+    GROUP BY r.id, f.name, f.label, f.hostel_id, h.name
     ORDER BY f.name, r.number
   `;
   return rows as Room[];
@@ -38,14 +47,16 @@ export async function getAllRooms(): Promise<Room[]> {
 
 export async function getRoomById(id: number): Promise<Room | null> {
   const rows = await sql`
-    SELECT r.*, f.name AS floor_name, f.label AS floor_label,
+    SELECT r.*, r.room_type, f.name AS floor_name, f.label AS floor_label,
+      f.hostel_id, h.name AS hostel_name,
       COUNT(ba.id)::int AS occupied_count
     FROM rooms r
     JOIN floors f ON f.id = r.floor_id
+    JOIN hostels h ON h.id = f.hostel_id
     LEFT JOIN beds b ON b.room_id = r.id
     LEFT JOIN bed_assignments ba ON ba.bed_id = b.id AND ba.vacated_at IS NULL
     WHERE r.id = ${id}
-    GROUP BY r.id, f.name, f.label
+    GROUP BY r.id, f.name, f.label, f.hostel_id, h.name
   `;
   return (rows[0] as Room) ?? null;
 }

@@ -17,6 +17,8 @@ export interface Resident {
   room_number?: string | null;
   room_id?: number | null;
   bed_id?: number | null;
+  hostel_name?: string | null;
+  hostel_id?: number | null;
   /** true = has an unpaid payment row this month; false = paid OR no row yet */
   has_unpaid?: boolean;
   /** true = a payment row exists for this month */
@@ -28,13 +30,14 @@ export interface ResidentListParams {
   limit?: number;
   offset?: number;
   activeOnly?: boolean;
+  hostelId?: number;
 }
 
 export async function getResidents(params: ResidentListParams = {}): Promise<{
   data: Resident[];
   total: number;
 }> {
-  const { search = "", limit = 20, offset = 0, activeOnly = false } = params;
+  const { search = "", limit = 20, offset = 0, activeOnly = false, hostelId } = params;
   const searchPattern = `%${search}%`;
 
   const data = await sql`
@@ -44,6 +47,8 @@ export async function getResidents(params: ResidentListParams = {}): Promise<{
       rm.number AS room_number,
       rm.id AS room_id,
       b.id AS bed_id,
+      h.name AS hostel_name,
+      h.id AS hostel_id,
       EXISTS (
         SELECT 1 FROM payments p 
         WHERE p.resident_id = r.id 
@@ -59,18 +64,26 @@ export async function getResidents(params: ResidentListParams = {}): Promise<{
     LEFT JOIN bed_assignments ba ON ba.resident_id = r.id AND ba.vacated_at IS NULL
     LEFT JOIN beds b ON b.id = ba.bed_id
     LEFT JOIN rooms rm ON rm.id = b.room_id
+    LEFT JOIN floors fl ON fl.id = rm.floor_id
+    LEFT JOIN hostels h ON h.id = fl.hostel_id
     WHERE 
       (${search} = '' OR r.name ILIKE ${searchPattern} OR r.phone ILIKE ${searchPattern} OR r.email ILIKE ${searchPattern})
       AND (${activeOnly} = false OR r.is_active = true)
+      AND (${hostelId ?? null}::int IS NULL OR fl.hostel_id = ${hostelId ?? null})
     ORDER BY r.name
     LIMIT ${limit} OFFSET ${offset}
   `;
 
   const countRow = await sql`
     SELECT COUNT(*)::int AS total FROM residents r
+    LEFT JOIN bed_assignments ba ON ba.resident_id = r.id AND ba.vacated_at IS NULL
+    LEFT JOIN beds b ON b.id = ba.bed_id
+    LEFT JOIN rooms rm ON rm.id = b.room_id
+    LEFT JOIN floors fl ON fl.id = rm.floor_id
     WHERE 
       (${search} = '' OR r.name ILIKE ${searchPattern} OR r.phone ILIKE ${searchPattern} OR r.email ILIKE ${searchPattern})
       AND (${activeOnly} = false OR r.is_active = true)
+      AND (${hostelId ?? null}::int IS NULL OR fl.hostel_id = ${hostelId ?? null})
   `;
 
   return { data: data as Resident[], total: countRow[0].total };
@@ -83,11 +96,15 @@ export async function getResidentById(id: number): Promise<Resident | null> {
       b.number AS bed_number,
       rm.number AS room_number,
       b.id AS bed_id,
-      rm.id AS room_id
+      rm.id AS room_id,
+      h.name AS hostel_name,
+      h.id AS hostel_id
     FROM residents r
     LEFT JOIN bed_assignments ba ON ba.resident_id = r.id AND ba.vacated_at IS NULL
     LEFT JOIN beds b ON b.id = ba.bed_id
     LEFT JOIN rooms rm ON rm.id = b.room_id
+    LEFT JOIN floors fl ON fl.id = rm.floor_id
+    LEFT JOIN hostels h ON h.id = fl.hostel_id
     WHERE r.id = ${id}
   `;
   return (rows[0] as Resident) ?? null;

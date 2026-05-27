@@ -1,40 +1,86 @@
-import { getAllRooms } from "@/lib/dal/rooms";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useHostel } from "@/lib/hostel-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { BedDouble, ChevronRight } from "lucide-react";
 
-export default async function RoomsPage() {
-  const rooms = await getAllRooms();
+interface Room {
+  id: number;
+  number: string;
+  capacity: number;
+  occupied_count: number;
+  floor_label: string;
+  room_type: string;
+  hostel_name?: string;
+}
 
-  const byFloor = rooms.reduce<Record<string, typeof rooms>>((acc, room) => {
-    const key = room.floor_label ?? "Other";
+export default function RoomsPage() {
+  const { hostelParam, label, isLoading: hostelLoading } = useHostel();
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (hostelLoading) return;
+    setLoading(true);
+    const url = hostelParam ? `/api/rooms?hostel=${hostelParam}` : `/api/rooms`;
+    fetch(url)
+      .then((r) => r.json())
+      .then((data) => { setRooms(data); setLoading(false); });
+  }, [hostelParam, hostelLoading]);
+
+  if (loading || hostelLoading) {
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div><div className="h-7 w-48 rounded bg-muted" /><div className="h-4 w-72 rounded bg-muted/60 mt-2" /></div>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="space-y-4">
+            <div className="h-5 w-32 rounded bg-muted" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {Array.from({ length: 2 }).map((_, j) => <div key={j} className="h-28 rounded-xl bg-muted/50" />)}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const byFloor = rooms.reduce<Record<string, Room[]>>((acc, room) => {
+    // When showing all hostels, prefix with hostel name for clear grouping
+    const key = hostelParam
+      ? (room.floor_label ?? "Other")
+      : `${room.hostel_name ?? ""} · ${room.floor_label ?? "Other"}`;
     if (!acc[key]) acc[key] = [];
     acc[key].push(room);
     return acc;
   }, {});
 
   const totalBeds = rooms.reduce((a, r) => a + r.capacity, 0);
-  const totalOcc  = rooms.reduce((a, r) => a + r.occupied_count, 0);
+  const totalOcc = rooms.reduce((a, r) => a + r.occupied_count, 0);
+
+  const roomTypeBadge = (type: string) => {
+    if (type === "dormitory") return <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-warning/10 text-warning border-warning/30 ml-1">Dormitory</Badge>;
+    if (type === "ac") return <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-primary/10 text-primary border-primary/30 ml-1">AC</Badge>;
+    return null;
+  };
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Rooms & Beds</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {totalOcc} of {totalBeds} beds occupied · click a room to manage beds
+            {label} — {totalOcc} of {totalBeds} beds occupied · click a room to manage beds
           </p>
         </div>
       </div>
 
-
-      {/* Per-floor sections */}
       {Object.entries(byFloor).map(([floorLabel, floorRooms]) => {
-        const floorOcc  = floorRooms.reduce((a, r) => a + r.occupied_count, 0);
-        const floorCap  = floorRooms.reduce((a, r) => a + r.capacity, 0);
-        const floorPct  = Math.round((floorOcc / floorCap) * 100);
+        const floorOcc = floorRooms.reduce((a, r) => a + r.occupied_count, 0);
+        const floorCap = floorRooms.reduce((a, r) => a + r.capacity, 0);
+        const floorPct = Math.round((floorOcc / floorCap) * 100);
         return (
           <div key={floorLabel}>
             <div className="flex items-center gap-3 mb-4">
@@ -48,15 +94,11 @@ export default async function RoomsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {floorRooms.map((room) => {
                 const occupied = room.occupied_count;
-                const isFull   = occupied >= room.capacity;
-                const pct      = Math.round((occupied / room.capacity) * 100);
+                const isFull = occupied >= room.capacity;
+                const pct = Math.round((occupied / room.capacity) * 100);
                 const barColor = isFull
                   ? "bg-destructive"
-                  : pct > 75
-                  ? "bg-warning"
-                  : pct > 0
-                  ? "bg-success"
-                  : "bg-muted-foreground/20";
+                  : pct > 75 ? "bg-warning" : pct > 0 ? "bg-success" : "bg-muted-foreground/20";
 
                 return (
                   <Link key={room.id} href={`/admin/rooms/${room.id}`}>
@@ -66,13 +108,14 @@ export default async function RoomsPage() {
                           <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${isFull ? "bg-destructive/10" : "bg-primary/8"}`}>
                             <BedDouble className={`h-4 w-4 ${isFull ? "text-destructive" : "text-primary"}`} />
                           </div>
-                          <CardTitle className="text-base font-semibold">Room {room.number}</CardTitle>
+                          <div className="flex items-center">
+                            <CardTitle className="text-base font-semibold">{room.number}</CardTitle>
+                            {roomTypeBadge(room.room_type)}
+                          </div>
                         </div>
                         <div className="flex items-center gap-1.5">
                           {isFull && (
-                            <Badge className="bg-destructive/10 text-destructive border-destructive/20 text-[10px] px-1.5 py-0">
-                              Full
-                            </Badge>
+                            <Badge className="bg-destructive/10 text-destructive border-destructive/20 text-[10px] px-1.5 py-0">Full</Badge>
                           )}
                           <Badge
                             variant="outline"
@@ -85,10 +128,7 @@ export default async function RoomsPage() {
                       </CardHeader>
                       <CardContent>
                         <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all duration-300 ${barColor}`}
-                            style={{ width: `${pct}%` }}
-                          />
+                          <div className={`h-full rounded-full transition-all duration-300 ${barColor}`} style={{ width: `${pct}%` }} />
                         </div>
                         <p className="text-xs text-muted-foreground mt-2">
                           {pct}% occupied · <span className="font-medium text-foreground">{room.capacity - occupied}</span> beds free

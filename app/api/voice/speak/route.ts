@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Speak voice="WOMAN" language="en-IN" loop="2">${escapeXml(message)}</Speak>
+  <Speak voice="WOMAN" language="en-IN" loop="1">${escapeXml(message)}</Speak>
   <Hangup/>
 </Response>`;
 

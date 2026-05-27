@@ -48,16 +48,25 @@ export function normalizePhone(phone: string): string {
 }
 
 /**
+ * Format a DB month value (e.g. "2025-05-01" or ISO string) to "May 2025" for TTS.
+ */
+function formatMonthForTts(month: string): string {
+  // Parse as UTC date (month column is always 1st of month at midnight UTC)
+  const d = new Date(month);
+  return d.toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" });
+}
+
+/**
  * Build a human-readable TTS message for the voice call.
  */
 export function buildReminderMessage(params: ReminderParams): string {
+  const month = formatMonthForTts(params.month);
   return [
     `Hello ${params.residentName}.`,
-    `This is an automated reminder from Crown Hostel.`,
-    `Your rent of ${params.amount} rupees for ${params.month} is overdue by ${params.daysOverdue} days.`,
-    `A late fee of ${params.fineAmount} rupees has been applied.`,
-    `Your total due is ${params.totalDue} rupees.`,
-    `Please clear the payment at the earliest.`,
+    `This is Crown Hostel.`,
+    `Your rent of ${params.amount} rupees for ${month} is overdue.`,
+    `Total due with fine is ${params.totalDue} rupees.`,
+    `Please pay at the earliest to avoid increasing fine.`,
     `Thank you.`,
   ].join(" ");
 }

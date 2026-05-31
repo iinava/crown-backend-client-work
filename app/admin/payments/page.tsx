@@ -428,6 +428,8 @@ function PaymentsInner() {
                               }}
                               autoFocus
                             />
+                          ) : p.paid ? (
+                            <span className="text-muted-foreground/60">₹{base.toLocaleString("en-IN")}</span>
                           ) : (
                             <span
                               className="group/rent inline-flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
@@ -444,6 +446,16 @@ function PaymentsInner() {
                           {!p.due_date ? (
                             // Dorm residents: no fines ever
                             <span className="text-muted-foreground/30 text-xs">—</span>
+                          ) : p.paid ? (
+                            // Paid: show fine as plain text, no editing
+                            fine > 0 ? (
+                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground/60">
+                                <Flame className="h-3 w-3" />
+                                +₹{fine.toLocaleString("en-IN")}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/30 text-xs">—</span>
+                            )
                           ) : editingAmountId === p.id && editField === "fine_amount" ? (
                             <Input
                               type="number" className="h-7 w-24 text-sm"

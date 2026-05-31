@@ -142,8 +142,11 @@ export async function updatePaymentFields(
   const rows = await sql`
     UPDATE payments SET
       amount      = COALESCE(${fields.amount ?? null}::numeric, amount),
-      fine_amount = COALESCE(${fields.fine_amount ?? null}::numeric, fine_amount)
+      fine_amount = COALESCE(${fields.fine_amount ?? null}::numeric, fine_amount),
+      total_due   = COALESCE(${fields.amount ?? null}::numeric, amount)
+                  + COALESCE(${fields.fine_amount ?? null}::numeric, fine_amount)
     WHERE id = ${paymentId}
+      AND paid = false
     RETURNING *
   `;
   return (rows[0] as Payment) ?? null;

@@ -234,7 +234,7 @@ export async function checkoutResident(
 }
 
 export async function deleteResident(id: number): Promise<void> {
-  // Find which beds this resident occupies so we can sync room status
+  // Find which rooms this resident has active assignments in (for post-delete sync)
   const assignments = await sql`
     SELECT b.room_id FROM bed_assignments ba
     JOIN beds b ON b.id = ba.bed_id
@@ -242,17 +242,19 @@ export async function deleteResident(id: number): Promise<void> {
   `;
   const roomIds = [...new Set((assignments as { room_id: number }[]).map((a) => a.room_id))];
 
-  // Vacate all active bed assignments
-  const vacatedBeds = await sql`
-    UPDATE bed_assignments SET vacated_at = NOW()
+  // Mark any currently occupied beds as unoccupied
+  const activeBeds = await sql`
+    SELECT bed_id FROM bed_assignments
     WHERE resident_id = ${id} AND vacated_at IS NULL
-    RETURNING bed_id
   `;
-  // Mark those beds as unoccupied
-  if (vacatedBeds.length > 0) {
-    const bedIds = (vacatedBeds as { bed_id: number }[]).map((r) => r.bed_id);
+  if (activeBeds.length > 0) {
+    const bedIds = (activeBeds as { bed_id: number }[]).map((r) => r.bed_id);
     await sql`UPDATE beds SET is_occupied = false WHERE id = ANY(${bedIds})`;
   }
+
+  // Delete ALL bed_assignments for this resident (active + historical)
+  // This is required to satisfy the FK constraint before deleting the resident row.
+  await sql`DELETE FROM bed_assignments WHERE resident_id = ${id}`;
 
   // Delete resident
   await sql`DELETE FROM residents WHERE id = ${id}`;

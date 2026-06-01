@@ -28,12 +28,12 @@ interface Expense {
 }
 
 const CATEGORIES = [
-  "maintenance", "utilities", "salaries", "groceries", "repairs", "cleaning", "other",
+  "maintenance", "utilities", "salaries", "groceries", "repairs", "cleaning", "bills", "other",
 ];
 
 const CAT_LABELS: Record<string, string> = {
   maintenance: "Maintenance", utilities: "Utilities", salaries: "Salaries",
-  groceries: "Groceries", repairs: "Repairs", cleaning: "Cleaning", other: "Other",
+  groceries: "Groceries", repairs: "Repairs", cleaning: "Cleaning", bills: "Bills", other: "Other",
 };
 
 const CAT_COLORS: Record<string, string> = {
@@ -43,6 +43,7 @@ const CAT_COLORS: Record<string, string> = {
   groceries:   "bg-green-500/10 text-green-500 border-green-500/20",
   repairs:     "bg-red-500/10 text-red-500 border-red-500/20",
   cleaning:    "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
+  bills:       "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
   other:       "bg-muted text-muted-foreground border-border",
 };
 

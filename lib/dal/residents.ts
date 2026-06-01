@@ -253,8 +253,10 @@ export async function deleteResident(id: number): Promise<void> {
   }
 
   // Delete ALL bed_assignments for this resident (active + historical)
-  // This is required to satisfy the FK constraint before deleting the resident row.
   await sql`DELETE FROM bed_assignments WHERE resident_id = ${id}`;
+
+  // notification_log rows are handled automatically via CASCADE FK
+  // payments rows are preserved — payments.resident_id is SET NULL via FK on delete
 
   // Delete resident
   await sql`DELETE FROM residents WHERE id = ${id}`;

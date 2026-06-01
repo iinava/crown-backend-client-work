@@ -2,7 +2,7 @@ import { sql } from "@/lib/db";
 
 export interface Payment {
   id: number;
-  resident_id: number;
+  resident_id: number | null;
   amount: string;          // rent amount (from resident's monthly_rate)
   due_date: string | null; // 5th of the payment month (null for dorm residents)
   fine_amount: string;     // accrued daily fine

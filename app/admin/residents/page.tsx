@@ -27,6 +27,7 @@ interface Resident {
   id: number;
   name: string;
   phone: string | null;
+  parent_phone: string | null;
   email: string | null;
   id_number: string | null;
   monthly_rate: string;
@@ -63,7 +64,7 @@ export default function ResidentsPage() {
   const { hostelParam, isLoading: hostelLoading } = useHostel();
 
   const [form, setForm] = useState({
-    name: "", phone: "", email: "", id_number: "",
+    name: "", phone: "", parent_phone: "", email: "", id_number: "",
     monthly_rate: "", daily_rate: "", move_in_date: "", notes: "",
   });
 
@@ -110,7 +111,7 @@ export default function ResidentsPage() {
   function openAdd() {
     setEditing(null);
     setPhoneError("");
-    setForm({ name: "", phone: "", email: "", id_number: "", monthly_rate: defaultRate, daily_rate: "", move_in_date: "", notes: "" });
+    setForm({ name: "", phone: "", parent_phone: "", email: "", id_number: "", monthly_rate: defaultRate, daily_rate: "", move_in_date: "", notes: "" });
     setDialogOpen(true);
   }
 
@@ -118,7 +119,8 @@ export default function ResidentsPage() {
     setEditing(r);
     setPhoneError("");
     setForm({
-      name: r.name, phone: r.phone ?? "", email: r.email ?? "",
+      name: r.name, phone: r.phone ?? "", parent_phone: r.parent_phone ?? "",
+      email: r.email ?? "",
       id_number: r.id_number ?? "", monthly_rate: r.monthly_rate,
       daily_rate: r.daily_rate ?? "",
       move_in_date: r.move_in_date?.slice(0, 10) ?? "", notes: "",
@@ -369,11 +371,12 @@ export default function ResidentsPage() {
             <DialogTitle>{editing ? "Edit Resident" : "Add Resident"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            {(["name", "phone", "email", "id_number"] as const).map((field) => (
+            {(["name", "phone", "parent_phone", "email", "id_number"] as const).map((field) => (
               <div key={field} className="space-y-1">
                 <Label htmlFor={field} className="capitalize">
-                  {field.replace("_", " ")}
+                  {field === "parent_phone" ? "Parent / Guardian Phone" : field.replace("_", " ")}
                   {(field === "name" || field === "phone") && <span className="text-destructive ml-0.5">*</span>}
+                  {field === "parent_phone" && <span className="text-muted-foreground text-xs font-normal ml-1">(optional)</span>}
                 </Label>
                 <Input
                   id={field}
@@ -385,6 +388,7 @@ export default function ResidentsPage() {
                   placeholder={
                     field === "name" ? "Full name" :
                     field === "phone" ? "10-digit mobile number" :
+                    field === "parent_phone" ? "Parent/guardian 10-digit number" :
                     field === "id_number" ? "National ID / Passport" : ""
                   }
                   className={field === "phone" && phoneError ? "border-destructive focus-visible:ring-destructive" : ""}

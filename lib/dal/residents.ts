@@ -5,6 +5,7 @@ export interface Resident {
   id: number;
   name: string;
   phone: string | null;
+  parent_phone: string | null;
   email: string | null;
   id_number: string | null;
   monthly_rate: string;
@@ -143,6 +144,7 @@ export async function getResidentById(id: number): Promise<Resident | null> {
 export interface CreateResidentData {
   name: string;
   phone?: string;
+  parent_phone?: string;
   email?: string;
   id_number?: string;
   monthly_rate: number;
@@ -153,8 +155,8 @@ export interface CreateResidentData {
 
 export async function createResident(data: CreateResidentData): Promise<Resident> {
   const rows = await sql`
-    INSERT INTO residents (name, phone, email, id_number, monthly_rate, daily_rate, move_in_date, notes)
-    VALUES (${data.name}, ${data.phone || null}, ${data.email || null}, ${data.id_number || null}, ${data.monthly_rate}, ${data.daily_rate ?? 0}, ${data.move_in_date || null}, ${data.notes || null})
+    INSERT INTO residents (name, phone, parent_phone, email, id_number, monthly_rate, daily_rate, move_in_date, notes)
+    VALUES (${data.name}, ${data.phone || null}, ${data.parent_phone || null}, ${data.email || null}, ${data.id_number || null}, ${data.monthly_rate}, ${data.daily_rate ?? 0}, ${data.move_in_date || null}, ${data.notes || null})
     RETURNING *
   `;
   return rows[0] as Resident;
@@ -170,17 +172,18 @@ export async function updateResident(id: number, data: UpdateResidentData): Prom
   // Build update using explicit checks so we can update fields to null/empty
   const rows = await sql`
     UPDATE residents SET
-      name        = CASE WHEN ${data.name !== undefined} THEN ${data.name ?? null} ELSE name END,
-      phone       = CASE WHEN ${data.phone !== undefined} THEN ${data.phone || null} ELSE phone END,
-      email       = CASE WHEN ${data.email !== undefined} THEN ${data.email || null} ELSE email END,
-      id_number   = CASE WHEN ${data.id_number !== undefined} THEN ${data.id_number || null} ELSE id_number END,
+      name         = CASE WHEN ${data.name !== undefined} THEN ${data.name ?? null} ELSE name END,
+      phone        = CASE WHEN ${data.phone !== undefined} THEN ${data.phone || null} ELSE phone END,
+      parent_phone = CASE WHEN ${data.parent_phone !== undefined} THEN ${data.parent_phone || null} ELSE parent_phone END,
+      email        = CASE WHEN ${data.email !== undefined} THEN ${data.email || null} ELSE email END,
+      id_number    = CASE WHEN ${data.id_number !== undefined} THEN ${data.id_number || null} ELSE id_number END,
       monthly_rate = CASE WHEN ${data.monthly_rate !== undefined} THEN ${data.monthly_rate ?? null} ELSE monthly_rate END,
-      daily_rate  = CASE WHEN ${data.daily_rate !== undefined} THEN ${data.daily_rate ?? 0} ELSE daily_rate END,
+      daily_rate   = CASE WHEN ${data.daily_rate !== undefined} THEN ${data.daily_rate ?? 0} ELSE daily_rate END,
       move_in_date = CASE WHEN ${data.move_in_date !== undefined} THEN ${data.move_in_date || null} ELSE move_in_date END,
-      notes       = CASE WHEN ${data.notes !== undefined} THEN ${data.notes || null} ELSE notes END,
-      is_active   = CASE WHEN ${data.is_active !== undefined} THEN ${data.is_active ?? null} ELSE is_active END,
+      notes        = CASE WHEN ${data.notes !== undefined} THEN ${data.notes || null} ELSE notes END,
+      is_active    = CASE WHEN ${data.is_active !== undefined} THEN ${data.is_active ?? null} ELSE is_active END,
       move_out_date = CASE WHEN ${data.move_out_date !== undefined} THEN ${data.move_out_date || null} ELSE move_out_date END,
-      updated_at  = NOW()
+      updated_at   = NOW()
     WHERE id = ${id}
     RETURNING *
   `;

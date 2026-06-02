@@ -48,6 +48,13 @@ export default async function ResidentDetailPage({
                 <span>{resident.phone}</span>
               </div>
             )}
+            {resident.parent_phone && (
+              <div className="flex items-center gap-2">
+                <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span>{resident.parent_phone}</span>
+                <span className="text-xs text-muted-foreground">(Parent)</span>
+              </div>
+            )}
             {resident.email && (
               <div className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-muted-foreground shrink-0" />

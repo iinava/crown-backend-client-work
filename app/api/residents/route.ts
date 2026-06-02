@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { name, phone, email, id_number, monthly_rate, daily_rate, move_in_date, notes } = body;
+  const { name, phone, parent_phone, email, id_number, monthly_rate, daily_rate, move_in_date, notes } = body;
 
   if (!name) {
     return Response.json({ error: "name is required" }, { status: 400 });
@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
   const resident = await createResident({
     name,
     phone,
+    parent_phone,
     email,
     id_number,
     monthly_rate: Number(monthly_rate ?? 0),

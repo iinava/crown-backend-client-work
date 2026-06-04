@@ -22,6 +22,8 @@ interface Payment {
   id: number;
   resident_id: number;
   resident_name: string;
+  resident_phone?: string | null;
+  resident_bed_no?: string | null;
   amount: string;
   fine_amount: string;
   total_due: number;
@@ -432,6 +434,18 @@ function PaymentsInner() {
                           >
                             {p.resident_name}
                           </Link>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            {p.resident_bed_no && (
+                              <span className="inline-flex items-center text-[10px] font-semibold bg-muted text-muted-foreground rounded px-1.5 py-0.5 leading-none">
+                                Bed {p.resident_bed_no}
+                              </span>
+                            )}
+                            {p.resident_phone && (
+                              <span className="text-[11px] text-muted-foreground/70">
+                                {p.resident_phone}
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
 
                         <TableCell className="text-sm text-muted-foreground">

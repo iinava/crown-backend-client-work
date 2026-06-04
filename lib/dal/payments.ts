@@ -12,6 +12,8 @@ export interface Payment {
   notes: string | null;
   created_at: string;
   resident_name?: string;
+  resident_phone?: string | null;
+  resident_bed_no?: string | null;
   hostel_name?: string;
   resident_move_in_date?: string | null;
   // Computed helpers
@@ -34,7 +36,9 @@ export async function getPayments(filters: {
     SELECT 
       p.*,
       r.name AS resident_name,
+      r.phone AS resident_phone,
       r.move_in_date AS resident_move_in_date,
+      b.number AS resident_bed_no,
       -- Hostel name: prefer active assignment, fall back to most recent historical one
       COALESCE(
         h_active.name,

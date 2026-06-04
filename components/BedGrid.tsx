@@ -89,7 +89,6 @@ export default function BedGrid({ beds, roomNumber, onRefresh }: BedGridProps) {
     const params = new URLSearchParams({
       active_only: "true",
       limit: "50",
-      is_staff: "all",
     });
     if (trimmed) params.set("search", trimmed);
 

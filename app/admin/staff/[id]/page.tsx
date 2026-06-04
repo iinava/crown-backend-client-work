@@ -1,0 +1,110 @@
+import { getResidentById } from "@/lib/dal/residents";
+import { getPayments } from "@/lib/dal/payments";
+import { notFound } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
+import { ChevronLeft, User, Phone, Mail, CreditCard, BedDouble, Calendar } from "lucide-react";
+
+export default async function StaffDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const resident = await getResidentById(Number(id));
+  if (!resident) notFound();
+
+  const { data: payments } = await getPayments({ residentId: Number(id), limit: 12 });
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <Link href="/admin/staff" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors w-fit">
+        <ChevronLeft className="h-4 w-4" />
+        Back to Staff
+      </Link>
+
+      <div>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold tracking-tight">{resident.name}</h1>
+          {!resident.is_active && <Badge variant="outline">Inactive</Badge>}
+        </div>
+        <p className="text-muted-foreground text-sm">Staff profile</p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Contact Info</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div className="flex items-center gap-2">
+              <User className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span>{resident.name}</span>
+            </div>
+            {resident.phone && (
+              <div className="flex items-center gap-2">
+                <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span>{resident.phone}</span>
+              </div>
+            )}
+            {resident.parent_phone && (
+              <div className="flex items-center gap-2">
+                <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span>{resident.parent_phone}</span>
+                <span className="text-xs text-muted-foreground">(Parent)</span>
+              </div>
+            )}
+            {resident.email && (
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span>{resident.email}</span>
+              </div>
+            )}
+            {resident.id_number && (
+              <div className="flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span>{resident.id_number}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Assignment</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div className="flex items-center gap-2">
+              <BedDouble className="h-4 w-4 text-muted-foreground shrink-0" />
+              {resident.bed_number ? (
+                <span>
+                  Bed <Badge variant="outline">{resident.bed_number}</Badge>
+                  {resident.room_number && (
+                    <span className="text-muted-foreground ml-1">· Room {resident.room_number}</span>
+                  )}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">Not assigned to any bed</span>
+              )}
+            </div>
+            
+            {resident.move_in_date && (
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span>Moved in {new Date(resident.move_in_date).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" })}</span>
+              </div>
+            )}
+            {resident.move_out_date && (
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="text-muted-foreground">Checked out {new Date(resident.move_out_date).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" })}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      </div>
+  );
+}

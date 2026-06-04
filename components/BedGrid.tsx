@@ -18,6 +18,7 @@ interface Bed {
   resident_name: string | null;
   resident_phone: string | null;
   assignment_id: number | null;
+  is_staff: boolean;
 }
 
 interface Resident {
@@ -171,6 +172,10 @@ export default function BedGrid({ beds, roomNumber, onRefresh }: BedGridProps) {
             Occupied
           </span>
           <span className="flex items-center gap-1">
+            <span className="inline-block w-3 h-3 rounded-sm bg-purple-500/20 border border-purple-500/40" />
+            Staff
+          </span>
+          <span className="flex items-center gap-1">
             <span className="inline-block w-3 h-3 rounded-sm bg-background border" />
             Vacant
           </span>
@@ -188,14 +193,16 @@ export default function BedGrid({ beds, roomNumber, onRefresh }: BedGridProps) {
                     "flex flex-col items-center justify-center p-2 rounded-md border text-xs font-medium transition-all hover:scale-105 hover:shadow-sm",
                     "w-[calc(25%-6px)] min-w-[80px] min-h-[64px]",
                     bed.is_occupied
-                      ? "bg-success/15 border-success/40 text-success"
+                      ? bed.is_staff
+                        ? "bg-purple-500/15 border-purple-500/40 text-purple-600 dark:text-purple-400"
+                        : "bg-success/15 border-success/40 text-success"
                       : "bg-muted/30 border-border/50 text-muted-foreground/60 hover:border-primary/50"
                   )}
                 >
                   <BedDouble className="h-4 w-4 mb-1 shrink-0" />
                   <span className="font-semibold text-[11px]">{bed.number.split("-").slice(1).join("-")}</span>
                   {bed.is_occupied && bed.resident_name ? (
-                    <span className="truncate w-full text-center text-[10px] leading-tight mt-0.5 text-success/80">
+                    <span className={cn("truncate w-full text-center text-[10px] leading-tight mt-0.5", bed.is_staff ? "text-purple-700 dark:text-purple-400/90" : "text-success/80")}>
                       {bed.resident_name.split(" ")[0]}
                     </span>
                   ) : (

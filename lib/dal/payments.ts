@@ -237,6 +237,7 @@ export async function generateMonthlyPayments(month: string, hostelId?: number):
     JOIN rooms rm ON rm.id = b.room_id
     JOIN floors fl ON fl.id = rm.floor_id
     WHERE r.is_active = true
+      AND r.is_staff = false
       AND (${hostelId ?? null}::int IS NULL OR fl.hostel_id = ${hostelId ?? null})
     ON CONFLICT (resident_id, month) DO NOTHING
     RETURNING id

@@ -24,6 +24,7 @@ const navItems = [
   { href: "/admin",           label: "Dashboard",   icon: LayoutDashboard, exact: true },
   { href: "/admin/rooms",     label: "Rooms & Beds", icon: BedDouble },
   { href: "/admin/residents", label: "Residents",    icon: Users },
+  { href: "/admin/staff",     label: "Staff",        icon: Users },
   { href: "/admin/payments",       label: "Payments",      icon: CreditCard },
   { href: "/admin/notifications", label: "Notifications", icon: Bell },
   { href: "/admin/settings",      label: "Settings",      icon: Settings },

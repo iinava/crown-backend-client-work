@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
   const offset       = Number(searchParams.get("offset") ?? "0");
   const activeOnly   = searchParams.get("active_only") === "true";
   const inactiveOnly = searchParams.get("inactive_only") === "true";
+  const isStaff      = searchParams.has("is_staff") ? searchParams.get("is_staff") === "true" : undefined;
   const hostelSlug   = searchParams.get("hostel") ?? undefined;
 
   let hostelId: number | undefined;
@@ -17,13 +18,13 @@ export async function GET(request: NextRequest) {
     hostelId = hostel?.id;
   }
 
-  const result = await getResidents({ search, limit, offset, activeOnly, inactiveOnly, hostelId });
+  const result = await getResidents({ search, limit, offset, activeOnly, inactiveOnly, isStaff, hostelId });
   return Response.json(result);
 }
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { name, phone, parent_phone, email, id_number, monthly_rate, daily_rate, move_in_date, notes } = body;
+  const { name, phone, parent_phone, email, id_number, monthly_rate, daily_rate, move_in_date, notes, is_staff } = body;
 
   if (!name) {
     return Response.json({ error: "name is required" }, { status: 400 });
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
     daily_rate: Number(daily_rate ?? 0),
     move_in_date,
     notes,
+    is_staff,
   });
 
   return Response.json(resident, { status: 201 });

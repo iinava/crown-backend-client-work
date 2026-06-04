@@ -71,6 +71,7 @@ export interface BedWithResident {
   resident_name: string | null;
   resident_phone: string | null;
   assignment_id: number | null;
+  is_staff: boolean;
 }
 
 export async function getRoomWithBeds(roomId: number): Promise<BedWithResident[]> {
@@ -81,6 +82,7 @@ export async function getRoomWithBeds(roomId: number): Promise<BedWithResident[]
       res.id AS resident_id,
       res.name AS resident_name,
       res.phone AS resident_phone,
+      COALESCE(res.is_staff, false) AS is_staff,
       ba.id AS assignment_id
     FROM beds b
     LEFT JOIN bed_assignments ba ON ba.bed_id = b.id AND ba.vacated_at IS NULL

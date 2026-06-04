@@ -13,6 +13,7 @@ export interface Resident {
   move_in_date: string | null;
   notes: string | null;
   is_active: boolean;
+  is_staff: boolean;
   move_out_date: string | null;
   created_at: string;
   updated_at: string;
@@ -35,6 +36,7 @@ export interface ResidentListParams {
   offset?: number;
   activeOnly?: boolean;
   inactiveOnly?: boolean;
+  isStaff?: boolean;
   hostelId?: number;
 }
 
@@ -42,7 +44,7 @@ export async function getResidents(params: ResidentListParams = {}): Promise<{
   data: Resident[];
   total: number;
 }> {
-  const { search = "", limit = 20, offset = 0, activeOnly = false, inactiveOnly = false, hostelId } = params;
+  const { search = "", limit = 20, offset = 0, activeOnly = false, inactiveOnly = false, isStaff = false, hostelId } = params;
   const searchPattern = `%${search}%`;
 
   const data = await sql`
@@ -76,6 +78,7 @@ export async function getResidents(params: ResidentListParams = {}): Promise<{
       (${search} = '' OR r.name ILIKE ${searchPattern} OR r.phone ILIKE ${searchPattern} OR r.email ILIKE ${searchPattern})
       AND (${activeOnly} = false OR r.is_active = true)
       AND (${inactiveOnly} = false OR r.is_active = false)
+      AND r.is_staff = ${isStaff}
       AND (
         ${hostelId ?? null}::int IS NULL
         -- Unassigned residents: always show regardless of hostel filter
@@ -101,6 +104,7 @@ export async function getResidents(params: ResidentListParams = {}): Promise<{
       (${search} = '' OR r.name ILIKE ${searchPattern} OR r.phone ILIKE ${searchPattern} OR r.email ILIKE ${searchPattern})
       AND (${activeOnly} = false OR r.is_active = true)
       AND (${inactiveOnly} = false OR r.is_active = false)
+      AND r.is_staff = ${isStaff}
       AND (
         ${hostelId ?? null}::int IS NULL
         OR NOT EXISTS (SELECT 1 FROM bed_assignments ba_chk WHERE ba_chk.resident_id = r.id)
@@ -151,12 +155,13 @@ export interface CreateResidentData {
   daily_rate?: number;
   move_in_date?: string;
   notes?: string;
+  is_staff?: boolean;
 }
 
 export async function createResident(data: CreateResidentData): Promise<Resident> {
   const rows = await sql`
-    INSERT INTO residents (name, phone, parent_phone, email, id_number, monthly_rate, daily_rate, move_in_date, notes)
-    VALUES (${data.name}, ${data.phone || null}, ${data.parent_phone || null}, ${data.email || null}, ${data.id_number || null}, ${data.monthly_rate}, ${data.daily_rate ?? 0}, ${data.move_in_date || null}, ${data.notes || null})
+    INSERT INTO residents (name, phone, parent_phone, email, id_number, monthly_rate, daily_rate, move_in_date, notes, is_staff)
+    VALUES (${data.name}, ${data.phone || null}, ${data.parent_phone || null}, ${data.email || null}, ${data.id_number || null}, ${data.monthly_rate}, ${data.daily_rate ?? 0}, ${data.move_in_date || null}, ${data.notes || null}, ${data.is_staff ?? false})
     RETURNING *
   `;
   return rows[0] as Resident;
@@ -182,6 +187,7 @@ export async function updateResident(id: number, data: UpdateResidentData): Prom
       move_in_date = CASE WHEN ${data.move_in_date !== undefined} THEN ${data.move_in_date || null} ELSE move_in_date END,
       notes        = CASE WHEN ${data.notes !== undefined} THEN ${data.notes || null} ELSE notes END,
       is_active    = CASE WHEN ${data.is_active !== undefined} THEN ${data.is_active ?? null} ELSE is_active END,
+      is_staff     = CASE WHEN ${data.is_staff !== undefined} THEN ${data.is_staff ?? null} ELSE is_staff END,
       move_out_date = CASE WHEN ${data.move_out_date !== undefined} THEN ${data.move_out_date || null} ELSE move_out_date END,
       updated_at   = NOW()
     WHERE id = ${id}

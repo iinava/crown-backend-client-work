@@ -18,6 +18,7 @@ interface Bed {
   resident_name: string | null;
   resident_phone: string | null;
   assignment_id: number | null;
+  is_staff: boolean;
 }
 
 interface Room {

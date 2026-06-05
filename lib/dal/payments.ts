@@ -29,8 +29,22 @@ export async function getPayments(filters: {
   limit?: number;
   offset?: number;
   hostelId?: number;
-}): Promise<{ data: Payment[]; total: number }> {
-  const { residentId, month, paid, limit = 100, offset = 0, hostelId } = filters;
+  search?: string;
+}): Promise<{
+  data: Payment[];
+  total: number;
+  stats: {
+    count_total: number;
+    count_paid: number;
+    count_unpaid: number;
+    count_overdue: number;
+    sum_collected: number;
+    sum_pending: number;
+    sum_fines: number;
+  };
+}> {
+  const { residentId, month, paid, limit = 100, offset = 0, hostelId, search } = filters;
+  const searchPattern = search ? `%${search}%` : null;
 
   const data = await sql`
     SELECT 
@@ -79,14 +93,34 @@ export async function getPayments(filters: {
             AND fl2.hostel_id = ${hostelId ?? null}
         )
       )
+      AND (
+        ${searchPattern}::text IS NULL
+        OR r.name    ILIKE ${searchPattern}
+        OR r.phone   ILIKE ${searchPattern}
+        OR b.number  ILIKE ${searchPattern}
+      )
     ORDER BY p.paid ASC, r.name
     LIMIT ${limit} OFFSET ${offset}
   `;
 
-  const countRow = await sql`
-    SELECT COUNT(*)::int AS total FROM payments p
+  const statsRow = await sql`
+    SELECT
+      COUNT(*)::int                                                                              AS count_total,
+      COUNT(*) FILTER (WHERE p.paid = true)::int                                                AS count_paid,
+      COUNT(*) FILTER (WHERE p.paid = false)::int                                               AS count_unpaid,
+      COUNT(*) FILTER (
+        WHERE p.paid = false
+          AND p.due_date IS NOT NULL
+          AND (NOW() AT TIME ZONE 'Asia/Kolkata')::date > p.due_date::date
+      )::int                                                                                     AS count_overdue,
+      COALESCE(SUM(p.amount)   FILTER (WHERE p.paid = true),  0)::numeric                       AS sum_collected,
+      COALESCE(SUM(p.amount + p.fine_amount) FILTER (WHERE p.paid = false), 0)::numeric         AS sum_pending,
+      COALESCE(SUM(p.fine_amount) FILTER (WHERE p.paid = false), 0)::numeric                    AS sum_fines
+    FROM payments p
     JOIN residents r ON r.id = p.resident_id
-    WHERE 
+    LEFT JOIN bed_assignments ba ON ba.resident_id = r.id AND ba.vacated_at IS NULL
+    LEFT JOIN beds b ON b.id = ba.bed_id
+    WHERE
       (${residentId ?? null}::int IS NULL OR p.resident_id = ${residentId ?? null})
       AND (${month ?? null}::text IS NULL OR p.month = ${month ?? null}::date)
       AND (${paid ?? null}::boolean IS NULL OR p.paid = ${paid ?? null})
@@ -101,9 +135,28 @@ export async function getPayments(filters: {
             AND fl2.hostel_id = ${hostelId ?? null}
         )
       )
+      AND (
+        ${searchPattern}::text IS NULL
+        OR r.name    ILIKE ${searchPattern}
+        OR r.phone   ILIKE ${searchPattern}
+        OR b.number  ILIKE ${searchPattern}
+      )
   `;
 
-  return { data: data as Payment[], total: countRow[0].total };
+  const s = statsRow[0];
+  return {
+    data: data as Payment[],
+    total: Number(s.count_total),
+    stats: {
+      count_total:   Number(s.count_total),
+      count_paid:    Number(s.count_paid),
+      count_unpaid:  Number(s.count_unpaid),
+      count_overdue: Number(s.count_overdue),
+      sum_collected: Number(s.sum_collected),
+      sum_pending:   Number(s.sum_pending),
+      sum_fines:     Number(s.sum_fines),
+    },
+  };
 }
 
 export async function getUnpaidThisMonth(hostelId?: number): Promise<Payment[]> {

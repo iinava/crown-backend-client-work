@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Loader2, AlertCircle, RefreshCw, Check,
-  IndianRupee, CheckCircle2, Clock, Flame, Pencil, RotateCcw,
+  IndianRupee, CheckCircle2, Clock, Flame, Pencil, RotateCcw, Search, X,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -72,6 +73,10 @@ function PaymentsInner() {
 
   const [payments, setPayments]           = useState<Payment[]>([]);
   const [total, setTotal]                 = useState(0);
+  const [stats, setStats] = useState({
+    count_total: 0, count_paid: 0, count_unpaid: 0, count_overdue: 0,
+    sum_collected: 0, sum_pending: 0, sum_fines: 0,
+  });
   const [loading, setLoading]             = useState(true);
   const [generating, setGenerating]       = useState(false);
   const [recalculating, setRecalculating] = useState(false);
@@ -79,18 +84,45 @@ function PaymentsInner() {
   const [editingAmountId, setEditingAmountId] = useState<number | null>(null);
   const [editField, setEditField] = useState<"amount" | "fine_amount">("amount");
   const [editValue, setEditValue] = useState("");
+  // Server-side search + pagination
+  const [searchInput, setSearchInput]  = useState("");   // controlled input value
+  const [searchQuery, setSearchQuery]  = useState("");   // debounced — sent to API
+  const [currentPage, setCurrentPage]  = useState(1);
+  const PAGE_SIZE = 15;
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { hostelParam, isLoading: hostelLoading } = useHostel();
+
+  // Debounce search input → searchQuery (350 ms)
+  function handleSearchChange(value: string) {
+    setSearchInput(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setSearchQuery(value);
+      setCurrentPage(1);
+    }, 350);
+  }
+
+  function clearSearch() {
+    setSearchInput("");
+    setSearchQuery("");
+    setCurrentPage(1);
+  }
 
   const fetchPayments = useCallback(async (signal?: AbortSignal) => {
     if (hostelLoading) return;
     setLoading(true);
     try {
       const hq  = hostelParam ? `&hostel=${hostelParam}` : "";
-      const res = await fetch(`/api/payments?month=${month}-01&limit=200${hq}`, { signal });
+      const sq  = searchQuery  ? `&search=${encodeURIComponent(searchQuery)}` : "";
+      const res = await fetch(
+        `/api/payments?month=${month}-01&page=${currentPage}&limit=${PAGE_SIZE}${hq}${sq}`,
+        { signal }
+      );
       if (!res.ok) throw new Error("fetch failed");
       const data = await res.json();
       setPayments(data.data ?? []);
       setTotal(data.total ?? 0);
+      if (data.stats) setStats(data.stats);
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") return;
       console.error("Payments fetch failed:", err);
@@ -98,7 +130,7 @@ function PaymentsInner() {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month, hostelParam, hostelLoading]);
+  }, [month, hostelParam, hostelLoading, searchQuery, currentPage]);
 
   const fetchExpensesTotal = useCallback(async (signal?: AbortSignal) => {
     if (hostelLoading) return;
@@ -218,12 +250,11 @@ function PaymentsInner() {
     setEditValue(String(currentValue));
   }
 
-  const unpaid    = payments.filter((p) => !p.paid);
-  const paid      = payments.filter((p) => p.paid);
-  const overdue   = unpaid.filter((p) => p.is_expired);
-  const collected = paid.reduce((a, p) => a + Number(p.amount), 0);
-  const pending   = unpaid.reduce((a, p) => a + Number(p.total_due), 0);
-  const totalFines = unpaid.reduce((a, p) => a + Number(p.fine_amount), 0);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const safePage   = Math.min(currentPage, totalPages);
+
+  // All stat values come from the server aggregate (full dataset, not current page)
+  const overdue = payments.filter((p) => p.is_expired && !p.paid); // for the banner names only
 
   const [selYear, selMon] = month.split("-").map(Number);
   const monthLabel = new Date(selYear, selMon - 1, 1).toLocaleString("en-IN", {
@@ -265,9 +296,9 @@ function PaymentsInner() {
             )}
           </div>
           <p className="text-muted-foreground text-sm mt-1">
-            {total} payment record{total !== 1 ? "s" : ""}
-            {paid.length > 0 && ` · ${paid.length} paid`}
-            {unpaid.length > 0 && ` · ${unpaid.length} pending`}
+            {stats.count_total} payment record{stats.count_total !== 1 ? "s" : ""}
+            {stats.count_paid > 0 && ` · ${stats.count_paid} paid`}
+            {stats.count_unpaid > 0 && ` · ${stats.count_unpaid} pending`}
           </p>
         </div>
 
@@ -326,8 +357,8 @@ function PaymentsInner() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Collected</p>
-                  <p className="text-xl font-bold">₹{collected.toLocaleString("en-IN")}</p>
-                  <p className="text-[10px] text-muted-foreground">{paid.length} paid</p>
+                  <p className="text-xl font-bold">₹{stats.sum_collected.toLocaleString("en-IN")}</p>
+                  <p className="text-[10px] text-muted-foreground">{stats.count_paid} paid</p>
                 </div>
               </CardContent>
             </Card>
@@ -339,8 +370,8 @@ function PaymentsInner() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Pending</p>
-                  <p className="text-xl font-bold">₹{pending.toLocaleString("en-IN")}</p>
-                  <p className="text-[10px] text-muted-foreground">{unpaid.length} unpaid</p>
+                  <p className="text-xl font-bold">₹{stats.sum_pending.toLocaleString("en-IN")}</p>
+                  <p className="text-[10px] text-muted-foreground">{stats.count_unpaid} unpaid</p>
                 </div>
               </CardContent>
             </Card>
@@ -352,8 +383,8 @@ function PaymentsInner() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Fines Accrued</p>
-                  <p className="text-xl font-bold">₹{totalFines.toLocaleString("en-IN")}</p>
-                  <p className="text-[10px] text-muted-foreground">{overdue.length} overdue</p>
+                  <p className="text-xl font-bold">₹{stats.sum_fines.toLocaleString("en-IN")}</p>
+                  <p className="text-[10px] text-muted-foreground">{stats.count_overdue} overdue</p>
                 </div>
               </CardContent>
             </Card>
@@ -365,19 +396,19 @@ function PaymentsInner() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Total</p>
-                  <p className="text-xl font-bold">{paid.length} / {total}</p>
+                  <p className="text-xl font-bold">{stats.count_paid} / {stats.count_total}</p>
                   <p className="text-[10px] text-muted-foreground">paid of total</p>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {overdue.length > 0 && (
+          {stats.count_overdue > 0 && (
             <div className="flex items-start gap-3 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3">
               <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
               <div>
                 <p className="text-sm font-medium text-destructive">
-                  {overdue.length} overdue payment{overdue.length > 1 ? "s" : ""} — fines accruing daily
+                  {stats.count_overdue} overdue payment{stats.count_overdue > 1 ? "s" : ""} — fines accruing daily
                 </p>
                 <p className="text-xs text-destructive/70 mt-0.5">
                   {overdue.map((p) => `${p.resident_name} (${p.days_overdue}d late)`).join(" · ")}
@@ -385,6 +416,27 @@ function PaymentsInner() {
               </div>
             </div>
           )}
+
+          {/* ── Search bar ── */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search by name, phone, or bed no…"
+              className="w-full h-9 pl-9 pr-9 rounded-lg border border-border/60 bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition"
+            />
+            {searchInput && (
+              <button
+                onClick={clearSearch}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
 
           <div className="rounded-xl border border-border/60 bg-card overflow-hidden shadow-sm">
             <Table>
@@ -407,8 +459,14 @@ function PaymentsInner() {
                     <TableCell colSpan={7} className="text-center py-12">
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <IndianRupee className="h-8 w-8 opacity-30" />
-                        <p className="text-sm">No payments for {monthLabel}</p>
-                        <p className="text-xs">Click <strong>Generate</strong> to create payment records.</p>
+                        {searchInput ? (
+                          <p className="text-sm">No results for &ldquo;{searchInput}&rdquo;</p>
+                        ) : (
+                          <>
+                            <p className="text-sm">No payments for {monthLabel}</p>
+                            <p className="text-xs">Click <strong>Generate</strong> to create payment records.</p>
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -598,6 +656,60 @@ function PaymentsInner() {
               </TableBody>
             </Table>
           </div>
+
+          {/* ── Pagination ── */}
+          {!loading && total > PAGE_SIZE && (
+            <div className="flex items-center justify-between px-1 pt-1">
+              <p className="text-xs text-muted-foreground">
+                Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, total)} of {total}
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                  className="h-8 w-8 flex items-center justify-center rounded-md border border-border/60 text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((n) => n === 1 || n === totalPages || Math.abs(n - safePage) <= 1)
+                  .reduce<(number | "…")[]>((acc, n, idx, arr) => {
+                    if (idx > 0 && n - (arr[idx - 1] as number) > 1) acc.push("…");
+                    acc.push(n);
+                    return acc;
+                  }, [])
+                  .map((item, idx) =>
+                    item === "…" ? (
+                      <span key={`ellipsis-${idx}`} className="px-1 text-xs text-muted-foreground">…</span>
+                    ) : (
+                      <button
+                        key={item}
+                        onClick={() => setCurrentPage(item as number)}
+                        className={`h-8 w-8 flex items-center justify-center rounded-md text-xs font-medium transition-colors ${
+                          safePage === item
+                            ? "bg-primary text-primary-foreground"
+                            : "border border-border/60 text-muted-foreground hover:bg-muted"
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    )
+                  )
+                }
+
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage === totalPages}
+                  className="h-8 w-8 flex items-center justify-center rounded-md border border-border/60 text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  aria-label="Next page"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -619,11 +731,11 @@ function PaymentsInner() {
       {activeTab === "summary" && (
         SummaryTab
           ? <SummaryTab
-              collected={collected}
-              pending={pending}
+              collected={stats.sum_collected}
+              pending={stats.sum_pending}
               expenses={expensesTotal}
-              paidCount={paid.length}
-              unpaidCount={unpaid.length}
+              paidCount={stats.count_paid}
+              unpaidCount={stats.count_unpaid}
               monthLabel={monthLabel}
             />
           : <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">

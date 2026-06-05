@@ -2,10 +2,11 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { BedDouble, Search, UserPlus, UserX, Loader2 } from "lucide-react";
+import { BedDouble, Search, UserPlus, UserX, Loader2, ArrowRightLeft } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -77,6 +78,7 @@ export default function BedGrid({ beds, roomNumber, onRefresh }: BedGridProps) {
   const [loadingResidents, setLoadingResidents] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [vacating, setVacating] = useState(false);
+  const [pendingResident, setPendingResident] = useState<Resident | null>(null);
 
   // Fetch all active people (residents + staff) — no is_staff filter, so both come back
   useEffect(() => {
@@ -99,8 +101,8 @@ export default function BedGrid({ beds, roomNumber, onRefresh }: BedGridProps) {
     return () => clearTimeout(timeout);
   }, [open, search]);
 
-  // Exclude anyone already assigned to a bed
-  const results = allResidents.filter((r) => !r.bed_number);
+  // Show everyone — those with a bed will get a warning badge & confirmation
+  const results = allResidents;
 
   const handleBedClick = useCallback((bed: Bed) => {
     setSelectedBed(bed);
@@ -127,8 +129,18 @@ export default function BedGrid({ beds, roomNumber, onRefresh }: BedGridProps) {
       }
     } finally {
       setAssigning(false);
+      setPendingResident(null);
     }
   }, [selectedBed, onRefresh]);
+
+  const handleResidentClick = useCallback((resident: Resident) => {
+    if (resident.bed_number) {
+      // Resident already has a bed — ask for double confirmation
+      setPendingResident(resident);
+    } else {
+      handleAssign(resident.id);
+    }
+  }, [handleAssign]);
 
   const handleVacate = useCallback(async () => {
     if (!selectedBed) return;
@@ -265,51 +277,59 @@ export default function BedGrid({ beds, roomNumber, onRefresh }: BedGridProps) {
                 </div>
               )}
 
-              <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
-                {results.map((r) => (
-                  <button
-                    key={r.id}
-                    onClick={() => handleAssign(r.id)}
-                    disabled={assigning}
-                    className="w-full flex items-center gap-3 rounded-xl border border-border/50 bg-card p-3 text-sm text-left hover:bg-accent/40 hover:border-primary/30 hover:shadow-sm transition-all duration-200 group disabled:opacity-50 cursor-pointer"
-                  >
-                    {/* Avatar */}
-                    <div className={cn(
-                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xs font-semibold uppercase tracking-wider transition-transform duration-200 group-hover:scale-105",
-                      getAvatarColor(r.name)
-                    )}>
-                      {getInitials(r.name)}
-                    </div>
+              <div className="space-y-1.5 max-h-[380px] overflow-y-auto px-1">
+                {results.map((r) => {
+                  const hasExistingBed = Boolean(r.bed_number);
+                  return (
+                    <button
+                      key={r.id}
+                      onClick={() => handleResidentClick(r)}
+                      disabled={assigning}
+                      className="w-full flex items-center gap-2.5 rounded-lg border border-border/50 bg-card py-2 px-3 text-sm text-left hover:bg-accent/40 hover:border-primary/20 transition-all duration-150 group disabled:opacity-50 cursor-pointer"
+                    >
+                      {/* Avatar */}
+                      <div className={cn(
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold uppercase tracking-wide",
+                        getAvatarColor(r.name)
+                      )}>
+                        {getInitials(r.name)}
+                      </div>
 
-                    {/* Details */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-semibold text-foreground group-hover:text-primary transition-colors duration-200 truncate">
-                          {formatName(r.name)}
-                        </p>
-                        {r.is_staff && (
-                          <Badge className="h-4 px-1.5 text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border-purple-200 dark:border-purple-800/50">
-                            Staff
-                          </Badge>
+                      {/* Details */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="font-medium text-foreground group-hover:text-primary transition-colors duration-150 truncate text-[13px]">
+                            {formatName(r.name)}
+                          </p>
+                          {r.is_staff && (
+                            <Badge className="h-4 px-1.5 text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border-purple-200 dark:border-purple-800/50">
+                              Staff
+                            </Badge>
+                          )}
+                          {hasExistingBed && (
+                            <Badge className="h-4 px-1.5 text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50">
+                              Bed {r.bed_number}
+                            </Badge>
+                          )}
+                        </div>
+                        {r.phone && (
+                          <p className="text-[11px] text-muted-foreground/70 leading-none mt-0.5">{r.phone}</p>
                         )}
                       </div>
-                      {r.phone ? (
-                        <p className="text-xs text-muted-foreground mt-0.5 font-medium">{r.phone}</p>
-                      ) : (
-                        <p className="text-xs text-muted-foreground/60 italic mt-0.5">No phone number</p>
-                      )}
-                    </div>
 
-                    {/* Action Icon */}
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background group-hover:border-primary/20 group-hover:bg-primary/5 transition-all duration-200">
-                      {assigning ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                      ) : (
-                        <UserPlus className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:scale-110 transition-all duration-200" />
-                      )}
-                    </div>
-                  </button>
-                ))}
+                      {/* Action Icon */}
+                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded border border-border/50 bg-background group-hover:border-primary/20 group-hover:bg-primary/5 transition-all duration-150">
+                        {assigning ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                        ) : hasExistingBed ? (
+                          <ArrowRightLeft className="h-3.5 w-3.5 text-amber-500" />
+                        ) : (
+                          <UserPlus className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors duration-150" />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
 
                 {!loadingResidents && results.length === 0 && (
                   <div className="flex flex-col items-center justify-center py-10 px-4 border border-dashed rounded-xl border-border/60 bg-muted/10 text-center animate-in fade-in-50 duration-300">
@@ -326,6 +346,38 @@ export default function BedGrid({ beds, roomNumber, onRefresh }: BedGridProps) {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Double-confirmation dialog for residents with an existing bed */}
+      <AlertDialog open={Boolean(pendingResident)} onOpenChange={(o) => { if (!o) setPendingResident(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Move resident to a new bed?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  <span className="font-semibold text-foreground">{pendingResident ? formatName(pendingResident.name) : ""}</span> is currently assigned to bed{" "}
+                  <span className="font-semibold text-foreground">{pendingResident?.bed_number}</span>.
+                </p>
+                <p>
+                  Assigning them here will <span className="font-semibold text-amber-600 dark:text-amber-400">vacate their current bed</span> and move them to bed{" "}
+                  <span className="font-semibold text-foreground">{selectedBed?.number}</span>.
+                </p>
+                <p>Are you sure you want to continue?</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingResident(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+              onClick={() => { if (pendingResident) handleAssign(pendingResident.id); }}
+            >
+              {assigning ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ArrowRightLeft className="h-4 w-4 mr-2" />}
+              Yes, move them
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

@@ -423,7 +423,7 @@ function PaymentsInner() {
                         key={p.id}
                         className={
                           p.paid ? "opacity-60"
-                          : p.is_expired ? "bg-destructive/[0.03]"
+                          : p.is_expired ? "bg-destructive/3"
                           : undefined
                         }
                       >

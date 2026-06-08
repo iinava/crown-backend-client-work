@@ -16,6 +16,7 @@ interface Room {
   floor_label: string;
   room_type: string;
   hostel_name?: string;
+  pending_payments_count?: number;
 }
 
 export default function RoomsPage() {
@@ -136,9 +137,17 @@ export default function RoomsPage() {
                         <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
                           <div className={`h-full rounded-full transition-all duration-300 ${barColor}`} style={{ width: `${pct}%` }} />
                         </div>
-                        <p className="text-xs text-muted-foreground mt-2">
-                          {pct}% occupied · <span className="font-medium text-foreground">{room.capacity - occupied}</span> beds free
-                        </p>
+                        <div className="flex items-center justify-between mt-2">
+                          <p className="text-xs text-muted-foreground">
+                            {pct}% occupied · <span className="font-medium text-foreground">{room.capacity - occupied}</span> beds free
+                          </p>
+                          {(room.pending_payments_count ?? 0) > 0 && (
+                            <span className="text-[10px] font-medium text-warning bg-warning/10 border border-warning/20 px-1.5 py-px rounded flex items-center gap-1">
+                              <span className="h-1.5 w-1.5 rounded-full bg-warning animate-pulse" />
+                              {room.pending_payments_count} unpaid {room.pending_payments_count === 1 ? "payment" : "payments"}
+                            </span>
+                          )}
+                        </div>
                       </CardContent>
                     </Card>
                   </Link>

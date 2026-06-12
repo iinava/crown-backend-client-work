@@ -72,7 +72,7 @@ export default function ExpensesTab({ month, hostelParam, hostelLoading, onTotal
     setLoading(true);
     try {
       const hq  = hostelParam ? `&hostel=${hostelParam}` : "";
-      const res = await fetch(`/api/expenses?month=${monthFirst}&limit=200${hq}`);
+      const res = await fetch(`/api/expenses?month=${monthFirst}&limit=200&exclude_category=food${hq}`);
       const data = await res.json();
       const list: Expense[] = data.data ?? [];
       setExpenses(list);

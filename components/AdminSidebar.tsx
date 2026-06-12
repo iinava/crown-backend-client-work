@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   ChevronRight,
   Bell,
+  Utensils,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -26,6 +27,7 @@ const navItems = [
   { href: "/admin/residents", label: "Residents",    icon: Users },
   { href: "/admin/staff",     label: "Staff",        icon: Users },
   { href: "/admin/payments",       label: "Payments",      icon: CreditCard },
+  { href: "/admin/restaurant",     label: "Restaurant",    icon: Utensils },
   { href: "/admin/notifications", label: "Notifications", icon: Bell },
   { href: "/admin/settings",      label: "Settings",      icon: Settings },
   { href: "/admin/users",     label: "Admin Users",  icon: ShieldCheck },

@@ -4,10 +4,12 @@ import { NextRequest } from "next/server";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const month      = searchParams.get("month") ?? undefined;   // "YYYY-MM-DD"
-  const hostelSlug = searchParams.get("hostel") ?? undefined;
-  const limit      = Number(searchParams.get("limit")  ?? 200);
-  const offset     = Number(searchParams.get("offset") ?? 0);
+  const month           = searchParams.get("month") ?? undefined;            // "YYYY-MM-DD"
+  const hostelSlug      = searchParams.get("hostel") ?? undefined;
+  const limit           = Number(searchParams.get("limit")  ?? 200);
+  const offset          = Number(searchParams.get("offset") ?? 0);
+  const excludeCategory = searchParams.get("exclude_category") ?? undefined; // e.g. "food"
+  const categoryOnly    = searchParams.get("category") ?? undefined;         // e.g. "food"
 
   let hostelId: number | undefined;
   if (hostelSlug) {
@@ -15,7 +17,7 @@ export async function GET(request: NextRequest) {
     hostelId = hostel?.id;
   }
 
-  const result = await getExpenses({ month, hostelId, limit, offset });
+  const result = await getExpenses({ month, hostelId, limit, offset, excludeCategory, categoryOnly });
   return Response.json(result);
 }
 

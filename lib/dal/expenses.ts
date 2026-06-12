@@ -19,6 +19,7 @@ export const EXPENSE_CATEGORIES = [
   "repairs",
   "cleaning",
   "bills",
+  "food",
   "other",
 ] as const;
 
@@ -27,12 +28,16 @@ export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 // ─── Queries ─────────────────────────────────────────────────────────────────
 
 export async function getExpenses(filters: {
-  month?: string;       // "YYYY-MM-DD" (first of month)
+  month?: string;          // "YYYY-MM-DD" (first of month)
   hostelId?: number;
   limit?: number;
   offset?: number;
+  /** Exclude this single category from results (e.g. hide 'food' from the Expenses tab) */
+  excludeCategory?: string;
+  /** Return ONLY this category (e.g. 'food' for the Restaurant page) */
+  categoryOnly?: string;
 }): Promise<{ data: Expense[]; total: number }> {
-  const { month, hostelId, limit = 100, offset = 0 } = filters;
+  const { month, hostelId, limit = 100, offset = 0, excludeCategory, categoryOnly } = filters;
 
   const data = await sql`
     SELECT *
@@ -41,6 +46,8 @@ export async function getExpenses(filters: {
       (${month ?? null}::text IS NULL
         OR DATE_TRUNC('month', date) = DATE_TRUNC('month', ${month ?? null}::date))
       AND (${hostelId ?? null}::int IS NULL OR hostel_id = ${hostelId ?? null})
+      AND (${excludeCategory ?? null}::text IS NULL OR category != ${excludeCategory ?? null})
+      AND (${categoryOnly ?? null}::text IS NULL OR category = ${categoryOnly ?? null})
     ORDER BY date DESC, id DESC
     LIMIT ${limit} OFFSET ${offset}
   `;
@@ -52,6 +59,8 @@ export async function getExpenses(filters: {
       (${month ?? null}::text IS NULL
         OR DATE_TRUNC('month', date) = DATE_TRUNC('month', ${month ?? null}::date))
       AND (${hostelId ?? null}::int IS NULL OR hostel_id = ${hostelId ?? null})
+      AND (${excludeCategory ?? null}::text IS NULL OR category != ${excludeCategory ?? null})
+      AND (${categoryOnly ?? null}::text IS NULL OR category = ${categoryOnly ?? null})
   `;
 
   return { data: data as Expense[], total: countRow[0].total };

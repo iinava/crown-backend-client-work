@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useHostel } from "@/lib/hostel-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import { BedDouble, ChevronRight } from "lucide-react";
+import { BedDouble, ChevronRight, Search, X } from "lucide-react";
 import { RoomsSkeleton } from "@/components/skeletons";
 
 interface Room {
@@ -19,10 +20,28 @@ interface Room {
   pending_payments_count?: number;
 }
 
+interface BedSearchResult {
+  bed_id: number;
+  bed_number: string;
+  room_id: number;
+  room_number: string;
+  floor_label: string;
+  hostel_name: string;
+}
+
 export default function RoomsPage() {
+  const router = useRouter();
   const { hostelParam, label, isLoading: hostelLoading } = useHostel();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Search state
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<BedSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (hostelLoading) return;
@@ -36,12 +55,51 @@ export default function RoomsPage() {
     return () => controller.abort();
   }, [hostelParam, hostelLoading]);
 
+  // Bed search debounce
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const trimmed = query.trim();
+    if (!trimmed) { setResults([]); setShowDropdown(false); return; }
+
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(`/api/beds/search?q=${encodeURIComponent(trimmed)}`);
+        const data = await res.json();
+        setResults(Array.isArray(data) ? data : []);
+        setShowDropdown(true);
+      } catch {
+        setResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 250);
+
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  function handleSelectResult(result: BedSearchResult) {
+    setShowDropdown(false);
+    setQuery("");
+    router.push(`/admin/rooms/${result.room_id}`);
+  }
+
   if (loading || hostelLoading) {
     return <RoomsSkeleton />;
   }
 
   const byFloor = rooms.reduce<Record<string, Room[]>>((acc, room) => {
-    // When showing all hostels, prefix with hostel name for clear grouping
     const key = hostelParam
       ? (room.floor_label ?? "Other")
       : `${room.hostel_name ?? ""} · ${room.floor_label ?? "Other"}`;
@@ -50,13 +108,11 @@ export default function RoomsPage() {
     return acc;
   }, {});
 
-  // Sort groups: by hostel name first, then by floor number
   const floorNumber = (label: string) => {
     const m = label.match(/(\d+)/);
     return m ? parseInt(m[1], 10) : 999;
   };
   const sortedGroups = Object.entries(byFloor).sort(([a], [b]) => {
-    // Split "Hostel · Floor" into parts for comparison
     const [aHostel = "", aFloor = a] = a.split(" · ");
     const [bHostel = "", bFloor = b] = b.split(" · ");
     const hostelCmp = aHostel.localeCompare(bHostel);
@@ -77,10 +133,74 @@ export default function RoomsPage() {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Rooms & Beds</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Rooms &amp; Beds</h1>
           <p className="text-muted-foreground text-sm mt-1">
             {label} — {totalOcc} of {totalBeds} beds occupied · click a room to manage beds
           </p>
+        </div>
+
+        {/* Bed search */}
+        <div ref={searchRef} className="relative w-full sm:w-64">
+          <div className="relative flex items-center">
+            <Search className="absolute left-3 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <input
+              id="bed-search-input"
+              type="text"
+              inputMode="numeric"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => { if (results.length > 0) setShowDropdown(true); }}
+              placeholder="Search bed number…"
+              className="w-full h-9 rounded-md border border-input bg-background pl-9 pr-9 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1 transition-shadow"
+            />
+            {query && (
+              <button
+                onClick={() => { setQuery(""); setResults([]); setShowDropdown(false); }}
+                className="absolute right-2.5 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Clear search"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Dropdown */}
+          {showDropdown && (
+            <div className="absolute z-50 top-full mt-1.5 w-full rounded-lg border border-border bg-popover shadow-lg overflow-hidden">
+              {searching && (
+                <div className="px-3 py-2.5 text-xs text-muted-foreground">Searching…</div>
+              )}
+              {!searching && results.length === 0 && (
+                <div className="px-3 py-2.5 text-xs text-muted-foreground">No beds found</div>
+              )}
+              {!searching && results.length > 0 && (
+                <ul className="max-h-64 overflow-y-auto">
+                  {results.map((r) => (
+                    <li key={r.bed_id}>
+                      <button
+                        onMouseDown={(e) => { e.preventDefault(); handleSelectResult(r); }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-accent transition-colors group"
+                      >
+                        <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                          <BedDouble className="h-3.5 w-3.5 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium leading-tight">
+                            Bed <span className="text-primary">#{r.bed_number}</span>
+                            <span className="text-muted-foreground font-normal"> · Room {r.room_number}</span>
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {r.hostel_name} · {r.floor_label}
+                          </p>
+                        </div>
+                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-primary transition-colors shrink-0" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

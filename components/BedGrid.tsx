@@ -6,7 +6,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { BedDouble, Search, UserPlus, UserX, Loader2, ArrowRightLeft } from "lucide-react";
+import { BedDouble, Search, UserPlus, UserX, Loader2, ArrowRightLeft, ShieldBan } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BedPaymentModal } from "@/components/BedPaymentModal";
@@ -33,6 +33,8 @@ interface Resident {
   phone: string | null;
   bed_number: string | null;
   is_staff: boolean;
+  is_blacklisted: boolean;
+  blacklist_reason: string | null;
 }
 
 interface BedGridProps {
@@ -87,6 +89,7 @@ export default function BedGrid({ beds, roomNumber, onRefresh }: BedGridProps) {
   
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [selectedPaymentBed, setSelectedPaymentBed] = useState<Bed | null>(null);
+  const [blacklistedWarning, setBlacklistedWarning] = useState<Resident | null>(null);
 
   // Fetch all active people (residents + staff) — no is_staff filter, so both come back
   useEffect(() => {
@@ -147,6 +150,11 @@ export default function BedGrid({ beds, roomNumber, onRefresh }: BedGridProps) {
   }, [selectedBed, onRefresh]);
 
   const handleResidentClick = useCallback((resident: Resident) => {
+    if (resident.is_blacklisted) {
+      // Intercept — show blacklist warning, don't assign
+      setBlacklistedWarning(resident);
+      return;
+    }
     if (resident.bed_number) {
       // Resident already has a bed — ask for double confirmation
       setPendingResident(resident);
@@ -345,8 +353,8 @@ export default function BedGrid({ beds, roomNumber, onRefresh }: BedGridProps) {
 
                       {/* Details */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <p className="font-medium text-foreground group-hover:text-primary transition-colors duration-150 truncate text-[13px]">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className={cn("font-medium transition-colors duration-150 truncate text-[13px]", r.is_blacklisted ? "text-destructive" : "text-foreground group-hover:text-primary")}>
                             {formatName(r.name)}
                           </p>
                           {r.is_staff && (
@@ -354,7 +362,13 @@ export default function BedGrid({ beds, roomNumber, onRefresh }: BedGridProps) {
                               Staff
                             </Badge>
                           )}
-                          {hasExistingBed && (
+                          {r.is_blacklisted && (
+                            <Badge className="h-4 px-1.5 text-[10px] bg-destructive/15 text-destructive border border-destructive/30 gap-0.5">
+                              <ShieldBan className="h-2.5 w-2.5" />
+                              Blacklisted
+                            </Badge>
+                          )}
+                          {hasExistingBed && !r.is_blacklisted && (
                             <Badge className="h-4 px-1.5 text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50">
                               Bed {r.bed_number}
                             </Badge>
@@ -366,9 +380,16 @@ export default function BedGrid({ beds, roomNumber, onRefresh }: BedGridProps) {
                       </div>
 
                       {/* Action Icon */}
-                      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded border border-border/50 bg-background group-hover:border-primary/20 group-hover:bg-primary/5 transition-all duration-150">
+                      <div className={cn(
+                        "flex h-6 w-6 shrink-0 items-center justify-center rounded border transition-all duration-150",
+                        r.is_blacklisted
+                          ? "border-destructive/30 bg-destructive/10"
+                          : "border-border/50 bg-background group-hover:border-primary/20 group-hover:bg-primary/5"
+                      )}>
                         {assigning ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                        ) : r.is_blacklisted ? (
+                          <ShieldBan className="h-3.5 w-3.5 text-destructive" />
                         ) : hasExistingBed ? (
                           <ArrowRightLeft className="h-3.5 w-3.5 text-amber-500" />
                         ) : (
@@ -394,6 +415,34 @@ export default function BedGrid({ beds, roomNumber, onRefresh }: BedGridProps) {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Blacklisted resident warning dialog */}
+      <AlertDialog open={Boolean(blacklistedWarning)} onOpenChange={(o) => { if (!o) setBlacklistedWarning(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <ShieldBan className="h-5 w-5" />
+              Resident is Blacklisted
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  <span className="font-semibold text-foreground">{blacklistedWarning ? formatName(blacklistedWarning.name) : ""}</span> is on the blacklist and cannot be assigned to any bed.
+                </p>
+                {blacklistedWarning?.blacklist_reason && (
+                  <p className="rounded-md border border-destructive/20 bg-destructive/8 px-3 py-2 text-destructive/80 text-xs">
+                    Reason: {blacklistedWarning.blacklist_reason}
+                  </p>
+                )}
+                <p>To assign a bed, first remove them from the blacklist on the Residents page.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setBlacklistedWarning(null)}>Close</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Double-confirmation dialog for residents with an existing bed */}
       <AlertDialog open={Boolean(pendingResident)} onOpenChange={(o) => { if (!o) setPendingResident(null); }}>

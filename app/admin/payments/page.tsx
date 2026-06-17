@@ -35,6 +35,8 @@ interface Payment {
   paid_at: string | null;
   notes: string | null;
   is_expired: boolean;
+  is_advance?: boolean;
+  booking_id?: number | null;
   is_dorm?: boolean;
   resident_move_in_date?: string | null;
 }
@@ -512,7 +514,8 @@ function PaymentsInner() {
                       <TableRow
                         key={p.id}
                         className={
-                          p.paid ? "opacity-60"
+                          p.is_advance ? "bg-violet-500/5 border-l-2 border-l-violet-500/40"
+                          : p.paid ? "opacity-60"
                           : p.is_expired ? "bg-destructive/3"
                           : undefined
                         }
@@ -525,6 +528,11 @@ function PaymentsInner() {
                             {p.resident_name}
                           </Link>
                           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            {p.is_advance && (
+                              <span className="inline-flex items-center text-[10px] font-semibold bg-violet-500/10 text-violet-500 border border-violet-500/25 rounded px-1.5 py-0.5 leading-none">
+                                Advance
+                              </span>
+                            )}
                             {p.resident_bed_no && (
                               <span className="inline-flex items-center text-[10px] font-semibold bg-muted text-muted-foreground rounded px-1.5 py-0.5 leading-none">
                                 Bed {p.resident_bed_no}

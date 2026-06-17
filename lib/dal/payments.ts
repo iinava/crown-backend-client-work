@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db";
+import { getConfirmedBookingForResidentMonth, markBookingConverted } from "@/lib/dal/bookings";
 
 export interface Payment {
   id: number;
@@ -11,6 +12,8 @@ export interface Payment {
   paid: boolean;
   paid_at: string | null;
   notes: string | null;
+  booking_id: number | null;  // set for booking advance payments
+  is_advance: boolean;        // true when this row represents a booking advance
   created_at: string;
   resident_name?: string;
   resident_phone?: string | null;
@@ -71,7 +74,8 @@ export async function getPayments(filters: {
       ) AS hostel_name,
       (p.amount + p.fine_amount)::numeric                                                    AS total_due,
       GREATEST(0, (NOW() AT TIME ZONE 'Asia/Kolkata')::date - p.due_date::date)::int         AS days_overdue,
-      (p.due_date IS NOT NULL AND (NOW() AT TIME ZONE 'Asia/Kolkata')::date > p.due_date::date AND p.paid = false) AS is_expired
+      (p.due_date IS NOT NULL AND (NOW() AT TIME ZONE 'Asia/Kolkata')::date > p.due_date::date AND p.paid = false) AS is_expired,
+      (p.booking_id IS NOT NULL)                                                             AS is_advance
     FROM payments p
     JOIN residents r ON r.id = p.resident_id
     -- Active bed (may be NULL for checked-out residents)
@@ -270,14 +274,23 @@ export async function recalculateFines(): Promise<number> {
  * Idempotent — uses ON CONFLICT DO NOTHING.
  */
 export async function generateMonthlyPayments(month: string, hostelId?: number): Promise<number> {
-  const result = await sql`
-    INSERT INTO payments (resident_id, month, amount, due_date)
+  // "YYYY-MM-DD" → "YYYY-MM" for booking lookup
+  const monthKey = month.slice(0, 7);
+
+  // 1. Find all eligible residents (active, has a bed, non-staff)
+  const eligible = await sql`
     SELECT
-      r.id,
-      ${month}::date,
+      r.id         AS resident_id,
+      rm.room_type AS room_type,
+      r.daily_rate,
+      r.monthly_rate,
+      r.move_in_date,
+      CASE
+        WHEN rm.room_type = 'dormitory' THEN NULL
+        ELSE (${month}::date + INTERVAL '4 days')::date
+      END AS due_date,
       CASE
         WHEN rm.room_type = 'dormitory' THEN
-          -- days from MAX(start_of_month, move_in_date) to end_of_month (inclusive)
           r.daily_rate * GREATEST(0,
             (DATE_TRUNC('month', ${month}::date) + INTERVAL '1 month - 1 day')::date
             - GREATEST(
@@ -286,13 +299,8 @@ export async function generateMonthlyPayments(month: string, hostelId?: number):
               )
             + 1
           )
-        ELSE
-          r.monthly_rate
-      END AS amount,
-      CASE
-        WHEN rm.room_type = 'dormitory' THEN NULL
-        ELSE (${month}::date + INTERVAL '4 days')::date
-      END AS due_date
+        ELSE r.monthly_rate
+      END AS base_amount
     FROM residents r
     JOIN bed_assignments ba ON ba.resident_id = r.id AND ba.vacated_at IS NULL
     JOIN beds b ON b.id = ba.bed_id
@@ -301,12 +309,103 @@ export async function generateMonthlyPayments(month: string, hostelId?: number):
     WHERE r.is_active = true
       AND r.is_staff = false
       AND (${hostelId ?? null}::int IS NULL OR fl.hostel_id = ${hostelId ?? null})
-    ON CONFLICT (resident_id, month) DO NOTHING
-    RETURNING id
   `;
-  return result.length;
+
+  // 2. Pre-fetch ALL confirmed bookings for this month in ONE query — avoids N+1
+  const bookingRows = await sql`
+    SELECT id, resident_id, advance_amount
+    FROM bookings
+    WHERE for_month = ${monthKey} AND status = 'confirmed'
+  `;
+  const bookingMap = new Map(
+    (bookingRows as { id: number; resident_id: number; advance_amount: string }[])
+      .map((b) => [b.resident_id, b])
+  );
+
+  let generated = 0;
+
+  for (const row of eligible as {
+    resident_id: number;
+    room_type: string;
+    base_amount: string;
+    due_date: string | null;
+  }[]) {
+    const booking = bookingMap.get(row.resident_id) ?? null;
+    const advance = booking ? Number(booking.advance_amount) : 0;
+    const finalAmount = Math.max(0, Number(row.base_amount) - advance);
+
+    const result = await sql`
+      INSERT INTO payments (resident_id, month, amount, due_date)
+      VALUES (
+        ${row.resident_id},
+        ${month}::date,
+        ${finalAmount},
+        ${row.due_date ?? null}
+      )
+      ON CONFLICT (resident_id, month) DO NOTHING
+      RETURNING id
+    `;
+
+    if (result.length > 0) {
+      generated++;
+      if (booking) await markBookingConverted(booking.id);
+    }
+  }
+
+  return generated;
 }
 
 export async function updatePaymentNotes(paymentId: number, notes: string): Promise<void> {
   await sql`UPDATE payments SET notes = ${notes} WHERE id = ${paymentId}`;
+}
+
+/**
+ * Creates an already-paid payment row for a booking advance.
+ * month is derived from advancePaidAt so the cash shows in the correct month's collected total.
+ */
+export async function createAdvancePayment({
+  bookingId,
+  residentId,
+  advanceAmount,
+  advancePaidAt,
+  forMonth,
+}: {
+  bookingId: number;
+  residentId: number;
+  advanceAmount: number;
+  advancePaidAt: string;  // "YYYY-MM-DD" — the date cash was received
+  forMonth: string;       // "YYYY-MM" — the month being booked, used for the note
+}): Promise<void> {
+  // Use the month the advance was actually paid (not the booked month)
+  const paidMonth = advancePaidAt.slice(0, 7);                    // "YYYY-MM"
+  const paidMonthDate = `${paidMonth}-01`;                       // "YYYY-MM-01" for the date column
+  const [y, m] = forMonth.split("-").map(Number);
+  const forMonthLabel = new Date(y, m - 1, 1)
+    .toLocaleString("en-IN", { month: "long", year: "numeric" }); // e.g. "July 2026"
+
+  await sql`
+    INSERT INTO payments
+      (resident_id, month, amount, due_date, paid, paid_at, fine_amount, fine_paid, notes, booking_id)
+    VALUES (
+      ${residentId},
+      ${paidMonthDate}::date,
+      ${advanceAmount},
+      NULL,           -- no due date, no fines on advance payments
+      true,
+      ${advancePaidAt}::date,
+      0,
+      0,
+      ${`Booking advance for ${forMonthLabel}`},
+      ${bookingId}
+    )
+    ON CONFLICT (resident_id, month) DO NOTHING
+  `;
+}
+
+/**
+ * Deletes the advance payment row linked to a booking (called when booking is deleted).
+ * Only deletes if the payment hasn't been manually edited (i.e. still marked paid via booking).
+ */
+export async function deleteAdvancePaymentForBooking(bookingId: number): Promise<void> {
+  await sql`DELETE FROM payments WHERE booking_id = ${bookingId}`;
 }

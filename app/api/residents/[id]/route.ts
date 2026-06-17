@@ -17,6 +17,18 @@ export async function PATCH(
 ) {
   const { id } = await params;
   const body = await request.json();
+
+  // If a bed is being assigned, block if resident is blacklisted
+  if (body.bed_id) {
+    const current = await getResidentById(Number(id));
+    if (current?.is_blacklisted) {
+      return Response.json(
+        { error: "This resident is blacklisted and cannot be assigned to a bed." },
+        { status: 409 }
+      );
+    }
+  }
+
   const updated = await updateResident(Number(id), body);
   if (!updated) return Response.json({ error: "Not found" }, { status: 404 });
   return Response.json(updated);

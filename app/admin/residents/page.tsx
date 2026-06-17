@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Loader2, Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight, Users, CheckCircle2, Clock, BedDouble, LogOut } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader2, Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight, Users, CheckCircle2, Clock, BedDouble, LogOut, ShieldBan, ShieldCheck, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { useHostel } from "@/lib/hostel-context";
@@ -21,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type StatusFilter = "active" | "inactive" | "all";
+type StatusFilter = "active" | "inactive" | "blacklisted" | "all";
 
 interface Resident {
   id: number;
@@ -34,6 +35,8 @@ interface Resident {
   daily_rate: string;
   move_in_date: string | null;
   is_active: boolean;
+  is_blacklisted: boolean;
+  blacklist_reason: string | null;
   bed_number: string | null;
   room_number: string | null;
   room_type: string | null;
@@ -61,6 +64,12 @@ export default function ResidentsPage() {
   const [checkingOut, setCheckingOut] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Resident | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Blacklist state
+  const [blacklistTarget, setBlacklistTarget] = useState<Resident | null>(null);
+  const [blacklistReason, setBlacklistReason] = useState("");
+  const [blacklisting, setBlacklisting] = useState(false);
+
   const { hostelParam, isLoading: hostelLoading } = useHostel();
 
   const [form, setForm] = useState({
@@ -73,11 +82,11 @@ export default function ResidentsPage() {
     setLoading(true);
     try {
       const hq = hostelParam ? `&hostel=${hostelParam}` : "";
-      const fq = statusFilter === "active"
-        ? "&active_only=true"
-        : statusFilter === "inactive"
-        ? "&inactive_only=true"
-        : "";
+      const fq =
+        statusFilter === "active" ? "&active_only=true" :
+        statusFilter === "inactive" ? "&inactive_only=true" :
+        statusFilter === "blacklisted" ? "&blacklist_only=true" :
+        "";
       const res = await fetch(
         `/api/residents?search=${encodeURIComponent(search)}&limit=${LIMIT}&offset=${offset}${hq}${fq}&is_staff=false`,
         { signal }
@@ -130,7 +139,6 @@ export default function ResidentsPage() {
 
   async function handleSave() {
     if (!form.name.trim()) { toast.error("Name is required"); return; }
-    // Phone: required, must be exactly 10 digits
     const phoneRegex = /^\d{10}$/;
     if (!form.phone.trim()) {
       setPhoneError("Phone number is required");
@@ -166,10 +174,6 @@ export default function ResidentsPage() {
     } finally {
       setSaving(false);
     }
-  }
-
-  async function handleDelete(r: Resident) {
-    setDeleteTarget(r);
   }
 
   async function confirmDelete() {
@@ -216,8 +220,42 @@ export default function ResidentsPage() {
     }
   }
 
+  function openBlacklist(r: Resident) {
+    setBlacklistTarget(r);
+    setBlacklistReason(r.blacklist_reason ?? "");
+  }
+
+  async function handleBlacklist() {
+    if (!blacklistTarget) return;
+    setBlacklisting(true);
+    const isCurrentlyBlacklisted = blacklistTarget.is_blacklisted;
+    try {
+      const res = await fetch(`/api/residents/${blacklistTarget.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          is_blacklisted: !isCurrentlyBlacklisted,
+          blacklist_reason: isCurrentlyBlacklisted ? null : (blacklistReason.trim() || null),
+        }),
+      });
+      if (res.ok) {
+        toast.success(isCurrentlyBlacklisted ? `${blacklistTarget.name} removed from blacklist` : `${blacklistTarget.name} blacklisted`);
+        setBlacklistTarget(null);
+        setBlacklistReason("");
+        fetchResidents();
+      } else {
+        const d = await res.json();
+        toast.error(d.error ?? "Failed to update blacklist status");
+      }
+    } finally {
+      setBlacklisting(false);
+    }
+  }
+
   const totalPages = Math.ceil(total / LIMIT);
   const currentPage = Math.floor(offset / LIMIT) + 1;
+
+  const filterLabel = statusFilter === "active" ? "active" : statusFilter === "inactive" ? "former" : statusFilter === "blacklisted" ? "blacklisted" : "total";
 
   return (
     <div className="space-y-6">
@@ -225,7 +263,7 @@ export default function ResidentsPage() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Residents</h1>
-          <p className="text-muted-foreground text-sm mt-1">{total} {statusFilter === "active" ? "active" : statusFilter === "inactive" ? "former" : "total"} residents</p>
+          <p className="text-muted-foreground text-sm mt-1">{total} {filterLabel} residents</p>
         </div>
         <Button onClick={openAdd} className="gap-2 bg-primary hover:bg-primary/90">
           <Plus className="h-4 w-4" /> Add Resident
@@ -243,14 +281,14 @@ export default function ResidentsPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        {/* Status filter dropdown */}
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-          <SelectTrigger className="h-9 w-36 bg-muted/50 border-border/60">
+          <SelectTrigger className="h-9 w-40 bg-muted/50 border-border/60">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="inactive">Former</SelectItem>
+            <SelectItem value="blacklisted">Blacklisted</SelectItem>
             <SelectItem value="all">All residents</SelectItem>
           </SelectContent>
         </Select>
@@ -266,7 +304,7 @@ export default function ResidentsPage() {
               <TableHead className="font-semibold text-xs uppercase tracking-wide">Bed</TableHead>
               <TableHead className="font-semibold text-xs uppercase tracking-wide">Rate</TableHead>
               <TableHead className="font-semibold text-xs uppercase tracking-wide">Payment</TableHead>
-              <TableHead className="w-[80px]" />
+              <TableHead className="w-[100px]" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -283,15 +321,34 @@ export default function ResidentsPage() {
               </TableRow>
             ) : (
               residents.map((r) => (
-                <TableRow key={r.id} className="hover:bg-muted/30 transition-colors">
+                <TableRow
+                  key={r.id}
+                  className={`hover:bg-muted/30 transition-colors ${r.is_blacklisted ? "bg-destructive/5" : ""}`}
+                >
                   <TableCell>
-                    <Link href={`/admin/residents/${r.id}`} className="font-medium hover:text-primary transition-colors">
-                      {r.name}
-                    </Link>
-                    {!r.is_active && (
-                      <Badge variant="outline" className="ml-2 text-[10px] text-muted-foreground">
-                        Inactive
-                      </Badge>
+                    <div className="flex items-center gap-2">
+                      <Link href={`/admin/residents/${r.id}`} className="font-medium hover:text-primary transition-colors">
+                        {r.name}
+                      </Link>
+                      {r.is_blacklisted && (
+                        <span
+                          className="inline-flex items-center gap-1 text-[10px] font-semibold text-destructive bg-destructive/10 border border-destructive/25 rounded-full px-1.5 py-0.5"
+                          title={r.blacklist_reason ?? "Blacklisted"}
+                        >
+                          <ShieldBan className="h-2.5 w-2.5" />
+                          Blacklisted
+                        </span>
+                      )}
+                      {!r.is_active && !r.is_blacklisted && (
+                        <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                          Inactive
+                        </Badge>
+                      )}
+                    </div>
+                    {r.is_blacklisted && r.blacklist_reason && (
+                      <p className="text-[11px] text-destructive/70 mt-0.5 max-w-[200px] truncate" title={r.blacklist_reason}>
+                        {r.blacklist_reason}
+                      </p>
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">{r.phone ?? "—"}</TableCell>
@@ -328,16 +385,25 @@ export default function ResidentsPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 justify-end">
                       <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openEdit(r)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      {r.is_active && (
+                      {r.is_active && !r.is_blacklisted && (
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-amber-600" title="Check out" onClick={() => openCheckout(r)}>
                           <LogOut className="h-3.5 w-3.5" />
                         </Button>
                       )}
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(r)}>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className={`h-7 w-7 ${r.is_blacklisted ? "text-destructive hover:text-destructive/70" : "text-muted-foreground hover:text-destructive"}`}
+                        title={r.is_blacklisted ? "Remove from blacklist" : "Blacklist resident"}
+                        onClick={() => openBlacklist(r)}
+                      >
+                        {r.is_blacklisted ? <ShieldCheck className="h-3.5 w-3.5" /> : <ShieldBan className="h-3.5 w-3.5" />}
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => setDeleteTarget(r)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -370,6 +436,17 @@ export default function ResidentsPage() {
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Resident" : "Add Resident"}</DialogTitle>
           </DialogHeader>
+          {editing?.is_blacklisted && (
+            <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/8 p-3">
+              <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-destructive">This resident is blacklisted</p>
+                {editing.blacklist_reason && (
+                  <p className="text-xs text-destructive/70 mt-0.5">{editing.blacklist_reason}</p>
+                )}
+              </div>
+            </div>
+          )}
           <div className="space-y-3 py-2">
             {(["name", "phone", "parent_phone", "email", "id_number"] as const).map((field) => (
               <div key={field} className="space-y-1">
@@ -435,6 +512,7 @@ export default function ResidentsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       {/* Checkout Confirmation Dialog */}
       <Dialog open={!!checkoutResident} onOpenChange={(open) => { if (!open) setCheckoutResident(null); }}>
         <DialogContent className="max-w-sm">
@@ -463,6 +541,53 @@ export default function ResidentsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Blacklist / Unblacklist Dialog */}
+      <Dialog open={!!blacklistTarget} onOpenChange={(open) => { if (!open) { setBlacklistTarget(null); setBlacklistReason(""); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {blacklistTarget?.is_blacklisted ? (
+                <><ShieldCheck className="h-4 w-4 text-green-500" /> Remove from Blacklist</>
+              ) : (
+                <><ShieldBan className="h-4 w-4 text-destructive" /> Blacklist Resident</>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {blacklistTarget?.is_blacklisted
+                ? <>Remove <span className="font-medium text-foreground">{blacklistTarget?.name}</span> from the blacklist? They can be assigned to beds again.</>
+                : <>Blacklisting <span className="font-medium text-foreground">{blacklistTarget?.name}</span> will prevent them from being assigned to any bed. They will <strong>not</strong> be auto-checked out — do that manually next month.</>
+              }
+            </DialogDescription>
+          </DialogHeader>
+          {!blacklistTarget?.is_blacklisted && (
+            <div className="space-y-1 py-1">
+              <Label htmlFor="blacklist-reason">Reason <span className="text-muted-foreground text-xs font-normal">(optional)</span></Label>
+              <Textarea
+                id="blacklist-reason"
+                placeholder="e.g. Repeated late payments, property damage..."
+                value={blacklistReason}
+                onChange={(e) => setBlacklistReason(e.target.value)}
+                className="resize-none h-20 text-sm"
+              />
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setBlacklistTarget(null); setBlacklistReason(""); }} disabled={blacklisting}>
+              Cancel
+            </Button>
+            <Button
+              variant={blacklistTarget?.is_blacklisted ? "default" : "destructive"}
+              onClick={handleBlacklist}
+              disabled={blacklisting}
+            >
+              {blacklisting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {blacklistTarget?.is_blacklisted ? "Remove from Blacklist" : "Blacklist Resident"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
         <DialogContent className="max-w-sm">

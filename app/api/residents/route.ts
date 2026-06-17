@@ -4,13 +4,14 @@ import { NextRequest } from "next/server";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const search       = searchParams.get("search") ?? "";
-  const limit        = Math.min(Number(searchParams.get("limit") ?? "20"), 100);
-  const offset       = Number(searchParams.get("offset") ?? "0");
-  const activeOnly   = searchParams.get("active_only") === "true";
-  const inactiveOnly = searchParams.get("inactive_only") === "true";
-  const isStaff      = searchParams.has("is_staff") ? searchParams.get("is_staff") === "true" : undefined;
-  const hostelSlug   = searchParams.get("hostel") ?? undefined;
+  const search        = searchParams.get("search") ?? "";
+  const limit         = Math.min(Number(searchParams.get("limit") ?? "20"), 100);
+  const offset        = Number(searchParams.get("offset") ?? "0");
+  const activeOnly    = searchParams.get("active_only") === "true";
+  const inactiveOnly  = searchParams.get("inactive_only") === "true";
+  const blacklistOnly = searchParams.get("blacklist_only") === "true";
+  const isStaff       = searchParams.has("is_staff") ? searchParams.get("is_staff") === "true" : undefined;
+  const hostelSlug    = searchParams.get("hostel") ?? undefined;
 
   let hostelId: number | undefined;
   if (hostelSlug) {
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
     hostelId = hostel?.id;
   }
 
-  const result = await getResidents({ search, limit, offset, activeOnly, inactiveOnly, isStaff, hostelId });
+  const result = await getResidents({ search, limit, offset, activeOnly, inactiveOnly, blacklistOnly, isStaff, hostelId });
   return Response.json(result);
 }
 

@@ -1,4 +1,5 @@
 import { assignBed, vacateBed, getBedById } from "@/lib/dal/beds";
+import { getResidentById } from "@/lib/dal/residents";
 import { NextRequest } from "next/server";
 
 export async function POST(
@@ -16,6 +17,15 @@ export async function POST(
 
   const bed = await getBedById(bedId);
   if (!bed) return Response.json({ error: "Bed not found" }, { status: 404 });
+
+  // Block assignment if resident is blacklisted
+  const resident = await getResidentById(Number(resident_id));
+  if (resident?.is_blacklisted) {
+    return Response.json(
+      { error: "This resident is blacklisted and cannot be assigned to a bed." },
+      { status: 409 }
+    );
+  }
 
   await assignBed(bedId, Number(resident_id));
   return Response.json({ success: true, bed_id: bedId, resident_id });

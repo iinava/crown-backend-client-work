@@ -14,6 +14,8 @@ export interface Resident {
   notes: string | null;
   is_active: boolean;
   is_staff: boolean;
+  is_blacklisted: boolean;
+  blacklist_reason: string | null;
   move_out_date: string | null;
   created_at: string;
   updated_at: string;
@@ -36,6 +38,7 @@ export interface ResidentListParams {
   offset?: number;
   activeOnly?: boolean;
   inactiveOnly?: boolean;
+  blacklistOnly?: boolean;
   isStaff?: boolean;
   hostelId?: number;
 }
@@ -44,7 +47,7 @@ export async function getResidents(params: ResidentListParams = {}): Promise<{
   data: Resident[];
   total: number;
 }> {
-  const { search = "", limit = 20, offset = 0, activeOnly = false, inactiveOnly = false, isStaff, hostelId } = params;
+  const { search = "", limit = 20, offset = 0, activeOnly = false, inactiveOnly = false, blacklistOnly = false, isStaff, hostelId } = params;
   const searchPattern = `%${search}%`;
 
   const data = await sql`
@@ -78,6 +81,7 @@ export async function getResidents(params: ResidentListParams = {}): Promise<{
       (${search} = '' OR r.name ILIKE ${searchPattern} OR r.phone ILIKE ${searchPattern} OR r.email ILIKE ${searchPattern})
       AND (${activeOnly} = false OR r.is_active = true)
       AND (${inactiveOnly} = false OR r.is_active = false)
+      AND (${blacklistOnly} = false OR r.is_blacklisted = true)
       AND (${isStaff ?? null}::boolean IS NULL OR r.is_staff = ${isStaff ?? null})
       AND (
         ${hostelId ?? null}::int IS NULL
@@ -94,7 +98,7 @@ export async function getResidents(params: ResidentListParams = {}): Promise<{
             AND fl2.hostel_id = ${hostelId ?? null}
         )
       )
-    ORDER BY r.name
+    ORDER BY r.is_blacklisted DESC, r.name
     LIMIT ${limit} OFFSET ${offset}
   `;
 
@@ -104,6 +108,7 @@ export async function getResidents(params: ResidentListParams = {}): Promise<{
       (${search} = '' OR r.name ILIKE ${searchPattern} OR r.phone ILIKE ${searchPattern} OR r.email ILIKE ${searchPattern})
       AND (${activeOnly} = false OR r.is_active = true)
       AND (${inactiveOnly} = false OR r.is_active = false)
+      AND (${blacklistOnly} = false OR r.is_blacklisted = true)
       AND (${isStaff ?? null}::boolean IS NULL OR r.is_staff = ${isStaff ?? null})
       AND (
         ${hostelId ?? null}::int IS NULL
@@ -171,25 +176,29 @@ export interface UpdateResidentData extends Partial<CreateResidentData> {
   is_active?: boolean;
   move_out_date?: string | null;
   daily_rate?: number;
+  is_blacklisted?: boolean;
+  blacklist_reason?: string | null;
 }
 
 export async function updateResident(id: number, data: UpdateResidentData): Promise<Resident | null> {
   // Build update using explicit checks so we can update fields to null/empty
   const rows = await sql`
     UPDATE residents SET
-      name         = CASE WHEN ${data.name !== undefined} THEN ${data.name ?? null} ELSE name END,
-      phone        = CASE WHEN ${data.phone !== undefined} THEN ${data.phone || null} ELSE phone END,
-      parent_phone = CASE WHEN ${data.parent_phone !== undefined} THEN ${data.parent_phone || null} ELSE parent_phone END,
-      email        = CASE WHEN ${data.email !== undefined} THEN ${data.email || null} ELSE email END,
-      id_number    = CASE WHEN ${data.id_number !== undefined} THEN ${data.id_number || null} ELSE id_number END,
-      monthly_rate = CASE WHEN ${data.monthly_rate !== undefined} THEN ${data.monthly_rate ?? null} ELSE monthly_rate END,
-      daily_rate   = CASE WHEN ${data.daily_rate !== undefined} THEN ${data.daily_rate ?? 0} ELSE daily_rate END,
-      move_in_date = CASE WHEN ${data.move_in_date !== undefined} THEN ${data.move_in_date || null} ELSE move_in_date END,
-      notes        = CASE WHEN ${data.notes !== undefined} THEN ${data.notes || null} ELSE notes END,
-      is_active    = CASE WHEN ${data.is_active !== undefined} THEN ${data.is_active ?? null} ELSE is_active END,
-      is_staff     = CASE WHEN ${data.is_staff !== undefined} THEN ${data.is_staff ?? null} ELSE is_staff END,
-      move_out_date = CASE WHEN ${data.move_out_date !== undefined} THEN ${data.move_out_date || null} ELSE move_out_date END,
-      updated_at   = NOW()
+      name             = CASE WHEN ${data.name !== undefined} THEN ${data.name ?? null} ELSE name END,
+      phone            = CASE WHEN ${data.phone !== undefined} THEN ${data.phone || null} ELSE phone END,
+      parent_phone     = CASE WHEN ${data.parent_phone !== undefined} THEN ${data.parent_phone || null} ELSE parent_phone END,
+      email            = CASE WHEN ${data.email !== undefined} THEN ${data.email || null} ELSE email END,
+      id_number        = CASE WHEN ${data.id_number !== undefined} THEN ${data.id_number || null} ELSE id_number END,
+      monthly_rate     = CASE WHEN ${data.monthly_rate !== undefined} THEN ${data.monthly_rate ?? null} ELSE monthly_rate END,
+      daily_rate       = CASE WHEN ${data.daily_rate !== undefined} THEN ${data.daily_rate ?? 0} ELSE daily_rate END,
+      move_in_date     = CASE WHEN ${data.move_in_date !== undefined} THEN ${data.move_in_date || null} ELSE move_in_date END,
+      notes            = CASE WHEN ${data.notes !== undefined} THEN ${data.notes || null} ELSE notes END,
+      is_active        = CASE WHEN ${data.is_active !== undefined} THEN ${data.is_active ?? null} ELSE is_active END,
+      is_staff         = CASE WHEN ${data.is_staff !== undefined} THEN ${data.is_staff ?? null} ELSE is_staff END,
+      move_out_date    = CASE WHEN ${data.move_out_date !== undefined} THEN ${data.move_out_date || null} ELSE move_out_date END,
+      is_blacklisted   = CASE WHEN ${data.is_blacklisted !== undefined} THEN ${data.is_blacklisted ?? false} ELSE is_blacklisted END,
+      blacklist_reason = CASE WHEN ${data.is_blacklisted !== undefined} THEN ${data.blacklist_reason ?? null} ELSE blacklist_reason END,
+      updated_at       = NOW()
     WHERE id = ${id}
     RETURNING *
   `;

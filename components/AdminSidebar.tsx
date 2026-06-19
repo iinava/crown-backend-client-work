@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Bell,
   Utensils,
+  CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -26,6 +27,7 @@ const navItems = [
   { href: "/admin/rooms",     label: "Rooms & Beds", icon: BedDouble },
   { href: "/admin/residents", label: "Residents",    icon: Users },
   { href: "/admin/staff",     label: "Staff",        icon: Users },
+  { href: "/admin/bookings",  label: "Bookings",     icon: CalendarDays },
   { href: "/admin/payments",       label: "Payments",      icon: CreditCard },
   { href: "/admin/restaurant",     label: "Restaurant",    icon: Utensils },
   { href: "/admin/notifications", label: "Notifications", icon: Bell },

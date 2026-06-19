@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
   const activeOnly    = searchParams.get("active_only") === "true";
   const inactiveOnly  = searchParams.get("inactive_only") === "true";
   const blacklistOnly = searchParams.get("blacklist_only") === "true";
+  const noBed         = searchParams.get("no_bed") === "true";
   const isStaff       = searchParams.has("is_staff") ? searchParams.get("is_staff") === "true" : undefined;
   const hostelSlug    = searchParams.get("hostel") ?? undefined;
 
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
     hostelId = hostel?.id;
   }
 
-  const result = await getResidents({ search, limit, offset, activeOnly, inactiveOnly, blacklistOnly, isStaff, hostelId });
+  const result = await getResidents({ search, limit, offset, activeOnly, inactiveOnly, blacklistOnly, isStaff, hostelId, noBed });
   return Response.json(result);
 }
 

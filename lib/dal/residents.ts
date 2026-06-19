@@ -41,13 +41,14 @@ export interface ResidentListParams {
   blacklistOnly?: boolean;
   isStaff?: boolean;
   hostelId?: number;
+  noBed?: boolean;  // only residents without an active bed assignment
 }
 
 export async function getResidents(params: ResidentListParams = {}): Promise<{
   data: Resident[];
   total: number;
 }> {
-  const { search = "", limit = 20, offset = 0, activeOnly = false, inactiveOnly = false, blacklistOnly = false, isStaff, hostelId } = params;
+  const { search = "", limit = 20, offset = 0, activeOnly = false, inactiveOnly = false, blacklistOnly = false, isStaff, hostelId, noBed = false } = params;
   const searchPattern = `%${search}%`;
 
   const data = await sql`
@@ -83,6 +84,7 @@ export async function getResidents(params: ResidentListParams = {}): Promise<{
       AND (${inactiveOnly} = false OR r.is_active = false)
       AND (${blacklistOnly} = false OR r.is_blacklisted = true)
       AND (${isStaff ?? null}::boolean IS NULL OR r.is_staff = ${isStaff ?? null})
+      AND (${noBed} = false OR b.id IS NULL)
       AND (
         ${hostelId ?? null}::int IS NULL
         -- Unassigned residents: always show regardless of hostel filter
@@ -110,6 +112,7 @@ export async function getResidents(params: ResidentListParams = {}): Promise<{
       AND (${inactiveOnly} = false OR r.is_active = false)
       AND (${blacklistOnly} = false OR r.is_blacklisted = true)
       AND (${isStaff ?? null}::boolean IS NULL OR r.is_staff = ${isStaff ?? null})
+      AND (${noBed} = false OR NOT EXISTS (SELECT 1 FROM bed_assignments ba_nb WHERE ba_nb.resident_id = r.id AND ba_nb.vacated_at IS NULL))
       AND (
         ${hostelId ?? null}::int IS NULL
         OR NOT EXISTS (SELECT 1 FROM bed_assignments ba_chk WHERE ba_chk.resident_id = r.id)

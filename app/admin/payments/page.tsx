@@ -8,6 +8,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Loader2, AlertCircle, RefreshCw, Check,
   IndianRupee, CheckCircle2, Clock, Flame, Pencil, RotateCcw, Search, X,
   ChevronLeft, ChevronRight,
@@ -86,6 +89,7 @@ function PaymentsInner() {
   const [editingAmountId, setEditingAmountId] = useState<number | null>(null);
   const [editField, setEditField] = useState<"amount" | "fine_amount">("amount");
   const [editValue, setEditValue] = useState("");
+  const [paymentToConfirm, setPaymentToConfirm] = useState<Payment | null>(null);
   // Server-side search + pagination
   const [searchInput, setSearchInput]  = useState("");   // controlled input value
   const [searchQuery, setSearchQuery]  = useState("");   // debounced — sent to API
@@ -222,6 +226,7 @@ function PaymentsInner() {
       });
       if (res.ok) {
         toast.success(`${payment.resident_name} marked as paid`);
+        setPaymentToConfirm(null);
         fetchPayments();
         fetchStats();
       } else {
@@ -681,7 +686,7 @@ function PaymentsInner() {
                             <Button
                               size="sm" variant="outline"
                               className="h-7 gap-1.5 text-xs border-success/30 text-success hover:bg-success/10"
-                              onClick={() => markPaid(p)}
+                              onClick={() => setPaymentToConfirm(p)}
                               disabled={isMarking}
                             >
                               {isMarking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
@@ -782,6 +787,31 @@ function PaymentsInner() {
               <Loader2 className="h-5 w-5 animate-spin" /> Loading…
             </div>
       )}
+
+      <AlertDialog open={!!paymentToConfirm} onOpenChange={(open) => { if (!open) setPaymentToConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Payment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure to mark payment as done for <span className="font-semibold text-foreground">{paymentToConfirm?.resident_name}</span> for <span className="font-semibold text-foreground">{monthLabel}</span> in bed <span className="font-semibold text-foreground">{paymentToConfirm?.resident_bed_no || "N/A"}</span>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={(e) => { 
+                e.preventDefault(); 
+                if (paymentToConfirm) markPaid(paymentToConfirm); 
+              }} 
+              className="bg-success hover:bg-success/90 text-white"
+              disabled={markingId !== null}
+            >
+              {markingId !== null ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Yes, mark as paid
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

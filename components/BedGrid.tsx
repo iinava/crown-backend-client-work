@@ -481,6 +481,7 @@ export default function BedGrid({ beds, roomNumber, onRefresh }: BedGridProps) {
         onOpenChange={setPaymentModalOpen}
         residentId={selectedPaymentBed?.resident_id ?? null}
         residentName={selectedPaymentBed?.resident_name ?? null}
+        bedName={selectedPaymentBed?.number ?? null}
         onSuccess={onRefresh}
       />
     </>

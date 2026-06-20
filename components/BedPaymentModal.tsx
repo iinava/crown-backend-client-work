@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, CheckCircle2, AlertCircle, RotateCcw, Check, Pencil, Flame, Clock } from "lucide-react";
@@ -12,13 +13,15 @@ interface BedPaymentModalProps {
   onOpenChange: (open: boolean) => void;
   residentId: number | null;
   residentName: string | null;
+  bedName: string | null;
   onSuccess: () => void;
 }
 
-export function BedPaymentModal({ open, onOpenChange, residentId, residentName, onSuccess }: BedPaymentModalProps) {
+export function BedPaymentModal({ open, onOpenChange, residentId, residentName, bedName, onSuccess }: BedPaymentModalProps) {
   const [loading, setLoading] = useState(false);
   const [paymentData, setPaymentData] = useState<any>(null);
   const [markingId, setMarkingId] = useState<number | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   
   const [editingField, setEditingField] = useState<"amount" | "fine_amount" | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -66,6 +69,7 @@ export function BedPaymentModal({ open, onOpenChange, residentId, residentName, 
       });
       if (res.ok) {
         toast.success("Marked as paid");
+        setConfirmOpen(false);
         fetchPayment();
         onSuccess();
       } else {
@@ -125,7 +129,8 @@ export function BedPaymentModal({ open, onOpenChange, residentId, residentName, 
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Payment for {residentName}</DialogTitle>
@@ -242,7 +247,7 @@ export function BedPaymentModal({ open, onOpenChange, residentId, residentName, 
                 ) : (
                   <Button
                     className="gap-2 bg-success hover:bg-success/90 text-white"
-                    onClick={markPaid}
+                    onClick={() => setConfirmOpen(true)}
                     disabled={markingId !== null}
                   >
                     {markingId === paymentData.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
@@ -255,5 +260,28 @@ export function BedPaymentModal({ open, onOpenChange, residentId, residentName, 
         )}
       </DialogContent>
     </Dialog>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Payment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure to mark payment as done for <span className="font-semibold text-foreground">{residentName}</span> for <span className="font-semibold text-foreground">{new Date().toLocaleString("en-US", { month: "long", timeZone: "Asia/Kolkata" })}</span> in bed <span className="font-semibold text-foreground">{bedName}</span>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={(e) => { e.preventDefault(); markPaid(); }} 
+              className="bg-success hover:bg-success/90 text-white"
+              disabled={markingId !== null}
+            >
+              {markingId !== null ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Yes, mark as paid
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

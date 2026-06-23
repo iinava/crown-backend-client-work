@@ -2,17 +2,34 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  TrendingUp, TrendingDown, Wallet, Clock, PieChart,
+  TrendingUp, TrendingDown, Wallet, Clock, PieChart, BarChart3,
 } from "lucide-react";
 
 interface Props {
   collected: number;     // income: paid rents
   pending: number;       // unpaid rent (context)
   expenses: number;      // total expenses this month
+  expensesList?: { amount: string; category: string }[];
   paidCount: number;
   unpaidCount: number;
   monthLabel: string;
 }
+
+const CAT_BG_COLORS: Record<string, string> = {
+  maintenance: "bg-orange-500",
+  utilities:   "bg-blue-500",
+  salaries:    "bg-purple-500",
+  groceries:   "bg-green-500",
+  repairs:     "bg-red-500",
+  cleaning:    "bg-cyan-500",
+  bills:       "bg-yellow-500",
+  other:       "bg-slate-400",
+};
+
+const CAT_LABELS: Record<string, string> = {
+  maintenance: "Maintenance", utilities: "Utilities", salaries: "Salaries",
+  groceries: "Groceries", repairs: "Repairs", cleaning: "Cleaning", bills: "Bills", other: "Other",
+};
 
 const PROFIT_TIERS = [
   { min: 0,   color: "text-success",     bg: "bg-success/10",     border: "border-success/20" },
@@ -20,7 +37,7 @@ const PROFIT_TIERS = [
 ];
 
 export default function SummaryTab({
-  collected, pending, expenses, paidCount, unpaidCount, monthLabel,
+  collected, pending, expenses, expensesList, paidCount, unpaidCount, monthLabel,
 }: Props) {
   const profit    = collected - expenses;
   const isProfit  = profit >= 0;
@@ -37,6 +54,16 @@ export default function SummaryTab({
   const maxVal      = Math.max(collected, expenses, 1);
   const incomeW     = Math.round((collected / maxVal) * 100);
   const expenseW    = Math.round((expenses  / maxVal) * 100);
+
+  const expensesByCategory = expensesList?.reduce((acc, curr) => {
+    const cat = curr.category || "other";
+    acc[cat] = (acc[cat] || 0) + Number(curr.amount);
+    return acc;
+  }, {} as Record<string, number>) || {};
+
+  const sortedCategories = Object.entries(expensesByCategory)
+    .sort(([, a], [, b]) => b - a)
+    .filter(([, amount]) => amount > 0);
 
   return (
     <div className="space-y-6">
@@ -93,41 +120,82 @@ export default function SummaryTab({
         </Card>
       </div>
 
-      {/* Visual bar comparison */}
-      <Card className="border-border/60">
-        <CardContent className="p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <PieChart className="h-4 w-4 text-muted-foreground" />
-            <p className="text-sm font-semibold">Income vs Expenses — {monthLabel}</p>
-          </div>
-          <div className="space-y-3">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-muted-foreground">Income</span>
-                <span className="text-xs font-semibold text-success">₹{collected.toLocaleString("en-IN")}</span>
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Visual bar comparison */}
+        <Card className="border-border/60">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <PieChart className="h-4 w-4 text-muted-foreground" />
+              <p className="text-sm font-semibold">Income vs Expenses — {monthLabel}</p>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-sm font-medium text-muted-foreground">Income</span>
+                  <span className="text-sm font-bold text-success">₹{collected.toLocaleString("en-IN")}</span>
+                </div>
+                <div className="h-3 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-success transition-all duration-700"
+                    style={{ width: `${incomeW}%` }}
+                  />
+                </div>
               </div>
-              <div className="h-3 rounded-full bg-muted overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-success transition-all duration-700"
-                  style={{ width: `${incomeW}%` }}
-                />
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-sm font-medium text-muted-foreground">Expenses</span>
+                  <span className="text-sm font-bold text-destructive">₹{expenses.toLocaleString("en-IN")}</span>
+                </div>
+                <div className="h-3 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-destructive transition-all duration-700"
+                    style={{ width: `${expenseW}%` }}
+                  />
+                </div>
               </div>
             </div>
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-muted-foreground">Expenses</span>
-                <span className="text-xs font-semibold text-destructive">₹{expenses.toLocaleString("en-IN")}</span>
-              </div>
-              <div className="h-3 rounded-full bg-muted overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-destructive transition-all duration-700"
-                  style={{ width: `${expenseW}%` }}
-                />
-              </div>
+          </CardContent>
+        </Card>
+
+        {/* Expenses by Category */}
+        <Card className="border-border/60">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              <p className="text-sm font-semibold">Expense Breakdown</p>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+            <div className="space-y-4">
+              {sortedCategories.length > 0 ? (
+                sortedCategories.map(([cat, amount]) => {
+                  const pct = expenses > 0 ? Math.round((amount / expenses) * 100) : 0;
+                  const bgClass = CAT_BG_COLORS[cat] || CAT_BG_COLORS.other;
+                  const label = CAT_LABELS[cat] || cat;
+                  
+                  return (
+                    <div key={cat}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-sm font-medium text-muted-foreground">{label} <span className="text-xs opacity-70">({pct}%)</span></span>
+                        <span className="text-sm font-semibold">₹{amount.toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="h-3 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${bgClass} transition-all duration-700`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-sm text-muted-foreground py-8 text-center bg-muted/30 rounded-lg border border-dashed border-border/50">
+                  No expenses logged for this month.
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Pending income context */}
       {pending > 0 && (

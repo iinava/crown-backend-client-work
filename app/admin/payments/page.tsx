@@ -61,6 +61,7 @@ function PaymentsInner() {
   const [month, setMonthState] = useState(monthParam);
   const [activeTab, setActiveTabState] = useState<Tab>(tabParam);
   const [expensesTotal, setExpensesTotal] = useState(0);
+  const [expensesList, setExpensesList] = useState<any[]>([]);
 
   function setActiveTab(tab: Tab) {
     setActiveTabState(tab);
@@ -159,7 +160,8 @@ function PaymentsInner() {
       const res = await fetch(`/api/expenses?month=${month}-01&limit=200${hq}`, { signal });
       if (!res.ok) return;
       const data = await res.json();
-      const list: Array<{ amount: string }> = data.data ?? [];
+      const list: Array<{ amount: string; category: string }> = data.data ?? [];
+      setExpensesList(list);
       setExpensesTotal(list.reduce((s, e) => s + Number(e.amount), 0));
     } catch (err: unknown) {
       if (err instanceof Error && err.name === "AbortError") return;
@@ -779,6 +781,7 @@ function PaymentsInner() {
               collected={stats.sum_collected}
               pending={stats.sum_pending}
               expenses={expensesTotal}
+              expensesList={expensesList}
               paidCount={stats.count_paid}
               unpaidCount={stats.count_unpaid}
               monthLabel={monthLabel}

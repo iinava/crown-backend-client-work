@@ -17,9 +17,10 @@ interface MonthPickerProps {
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  allowFuture?: boolean;
 }
 
-export default function MonthPicker({ value, onChange, className }: MonthPickerProps) {
+export default function MonthPicker({ value, onChange, className, allowFuture = false }: MonthPickerProps) {
   const [open, setOpen] = useState(false);
   const [year, setYear] = useState(() => Number(value.split("-")[0]));
 
@@ -76,7 +77,7 @@ export default function MonthPicker({ value, onChange, className }: MonthPickerP
             size="icon"
             className="h-7 w-7 text-muted-foreground hover:text-foreground"
             onClick={nextYear}
-            disabled={year >= nowYear + 1}
+            disabled={!allowFuture && year >= nowYear + 1}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -88,16 +89,17 @@ export default function MonthPicker({ value, onChange, className }: MonthPickerP
             const isSelected = year === selectedYear && idx === selectedMonth;
             const isToday    = year === nowYear && idx === nowMonth;
             const isFuture   = year > nowYear || (year === nowYear && idx > nowMonth);
+            const isDisabled = !allowFuture && isFuture;
 
             return (
               <button
                 key={label}
                 onClick={() => select(idx)}
-                disabled={isFuture}
+                disabled={isDisabled}
                 className={cn(
                   "relative rounded-md px-2 py-2 text-sm font-medium transition-all",
                   "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  isFuture
+                  isDisabled
                     ? "text-muted-foreground/30 cursor-not-allowed"
                     : isSelected
                     ? "bg-primary text-primary-foreground shadow-sm"

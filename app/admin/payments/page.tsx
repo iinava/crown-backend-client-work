@@ -11,9 +11,17 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
   Loader2, AlertCircle, RefreshCw, Check,
   IndianRupee, CheckCircle2, Clock, Flame, Pencil, RotateCcw, Search, X,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -98,6 +106,84 @@ function PaymentsInner() {
   const PAGE_SIZE = 15;
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { hostelParam, isLoading: hostelLoading } = useHostel();
+
+  const [isAdvanceOpen, setIsAdvanceOpen] = useState(false);
+  const [advanceResidents, setAdvanceResidents] = useState<any[]>([]);
+  const [advResidentId, setAdvResidentId] = useState("");
+  const [advPopoverOpen, setAdvPopoverOpen] = useState(false);
+  const [advSelectedRes, setAdvSelectedRes] = useState<any>(null);
+  const [advSearch, setAdvSearch] = useState("");
+  const [advMonth, setAdvMonth] = useState(todayMonthISO());
+  const [advAmount, setAdvAmount] = useState("");
+  const [advNotes, setAdvNotes] = useState("");
+  const [advSubmitting, setAdvSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!isAdvanceOpen) {
+      setAdvSearch("");
+      return;
+    }
+    const timeout = setTimeout(async () => {
+      try {
+        const hq = hostelParam ? `&hostelId=${hostelParam}` : "";
+        const sq = advSearch ? `&search=${encodeURIComponent(advSearch)}` : "";
+        const res = await fetch(`/api/residents?active_only=true&limit=20${hq}${sq}`);
+        const data = await res.json();
+        setAdvanceResidents(data.data || []);
+      } catch (err) {
+        console.error(err);
+      }
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [isAdvanceOpen, hostelParam, advSearch]);
+
+  useEffect(() => {
+    if (advResidentId) {
+      const r = advanceResidents.find((x) => x.id.toString() === advResidentId) || advSelectedRes;
+      if (r) {
+        setAdvSelectedRes(r);
+        setAdvAmount(r.monthly_rate || "");
+      }
+    } else {
+      setAdvSelectedRes(null);
+      setAdvAmount("");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [advResidentId, advanceResidents]);
+
+  async function submitAdvancePayment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!advResidentId || !advMonth || !advAmount) return;
+    setAdvSubmitting(true);
+    try {
+      const res = await fetch("/api/payments/advance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          residentId: advResidentId,
+          month: advMonth + "-01",
+          amount: advAmount,
+          notes: advNotes,
+        }),
+      });
+      if (res.ok) {
+        toast.success("Advance payment recorded");
+        setIsAdvanceOpen(false);
+        setAdvResidentId("");
+        setAdvSelectedRes(null);
+        setAdvSearch("");
+        setAdvAmount("");
+        setAdvNotes("");
+        fetchPayments();
+        fetchStats();
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to record advance payment");
+      }
+    } finally {
+      setAdvSubmitting(false);
+    }
+  }
 
   // Debounce search input → searchQuery (350 ms)
   function handleSearchChange(value: string) {
@@ -339,9 +425,17 @@ function PaymentsInner() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <MonthPicker value={month} onChange={setMonth} />
+          <MonthPicker value={month} onChange={setMonth} allowFuture={true} />
           {activeTab === "payments" && (
             <>
+              <Button
+                variant="outline" size="sm"
+                onClick={() => setIsAdvanceOpen(true)}
+                className="gap-1.5 h-9"
+              >
+                <Plus className="h-4 w-4" />
+                Record Advance
+              </Button>
               <Button
                 variant="outline" size="sm"
                 onClick={recalculateFines} disabled={recalculating}
@@ -815,6 +909,98 @@ function PaymentsInner() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={isAdvanceOpen} onOpenChange={setIsAdvanceOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <form onSubmit={submitAdvancePayment}>
+            <DialogHeader>
+              <DialogTitle>Record Advance Payment</DialogTitle>
+              <DialogDescription>
+                Record rent payment for a future month.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label>Resident</Label>
+                <Popover open={advPopoverOpen} onOpenChange={setAdvPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" aria-expanded={advPopoverOpen} className="justify-between text-left font-normal w-full">
+                      <span className="truncate">
+                        {advSelectedRes 
+                          ? `${advSelectedRes.name} ${advSelectedRes.room_number ? `(${advSelectedRes.room_type === 'dormitory' ? 'Dorm' : 'Rm'} ${advSelectedRes.room_number}${advSelectedRes.bed_number ? `-${advSelectedRes.bed_number}` : ''})` : ''}`
+                          : "Select a resident..."}
+                      </span>
+                      <ChevronRight className={`h-4 w-4 shrink-0 opacity-50 transition-transform ${advPopoverOpen ? "-rotate-90" : "rotate-90"}`} />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-2 flex flex-col gap-2 shadow-lg z-50">
+                    <Input 
+                      placeholder="Search resident by name or phone..." 
+                      value={advSearch}
+                      onChange={(e) => setAdvSearch(e.target.value)}
+                      className="h-9"
+                    />
+                    <div className="flex flex-col gap-1 max-h-[200px] overflow-y-auto mt-2">
+                      {advanceResidents.length === 0 ? (
+                        <p className="text-sm text-muted-foreground p-2 text-center">No residents found.</p>
+                      ) : (
+                        advanceResidents.map(r => (
+                          <div 
+                            key={r.id} 
+                            onClick={() => {
+                              setAdvResidentId(r.id.toString());
+                              setAdvSelectedRes(r);
+                              setAdvAmount(r.monthly_rate || "");
+                              setAdvPopoverOpen(false);
+                            }}
+                            className={`flex items-center px-2 py-1.5 text-sm rounded-sm cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground ${advResidentId === r.id.toString() ? "bg-accent text-accent-foreground font-medium" : ""}`}
+                          >
+                            {r.name} {r.room_number ? `(${r.room_type === 'dormitory' ? 'Dorm' : 'Rm'} ${r.room_number}${r.bed_number ? `-${r.bed_number}` : ''})` : ''}
+                            {advResidentId === r.id.toString() && <Check className="ml-auto h-4 w-4 opacity-70" />}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="grid gap-2">
+                <Label>Month</Label>
+                <MonthPicker value={advMonth} onChange={setAdvMonth} allowFuture={true} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="amount">Rent Amount</Label>
+                <Input 
+                  id="amount" 
+                  type="number" 
+                  value={advAmount} 
+                  onChange={(e) => setAdvAmount(e.target.value)} 
+                  required 
+                  min="0"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="notes">Notes (Optional)</Label>
+                <Input 
+                  id="notes" 
+                  value={advNotes} 
+                  onChange={(e) => setAdvNotes(e.target.value)} 
+                  placeholder="e.g. Paid in cash early"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsAdvanceOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={advSubmitting}>
+                {advSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Save Payment
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

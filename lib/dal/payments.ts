@@ -244,11 +244,13 @@ export async function updatePaymentFields(
 export async function recalculateFines(): Promise<number> {
   const result = await sql`
     UPDATE payments p
-    SET fine_amount = GREATEST(0, (NOW() AT TIME ZONE 'Asia/Kolkata')::date - p.due_date::date)
+    SET fine_amount = GREATEST(0, COALESCE(r.move_out_date, (NOW() AT TIME ZONE 'Asia/Kolkata')::date) - p.due_date::date)
                       * (SELECT value::numeric FROM settings WHERE key = 'daily_fine_amount')
-    WHERE p.paid = false
+    FROM residents r
+    WHERE p.resident_id = r.id
+      AND p.paid = false
       AND p.due_date IS NOT NULL
-      AND (NOW() AT TIME ZONE 'Asia/Kolkata')::date > p.due_date::date
+      AND COALESCE(r.move_out_date, (NOW() AT TIME ZONE 'Asia/Kolkata')::date) > p.due_date::date
       -- Skip dormitory residents
       AND NOT EXISTS (
         SELECT 1
@@ -259,7 +261,7 @@ export async function recalculateFines(): Promise<number> {
           AND ba.vacated_at IS NULL
           AND rm.room_type = 'dormitory'
       )
-    RETURNING id
+    RETURNING p.id
   `;
   return result.length;
 }
@@ -322,34 +324,45 @@ export async function generateMonthlyPayments(month: string, hostelId?: number):
       .map((b) => [b.resident_id, b])
   );
 
-  let generated = 0;
-
-  for (const row of eligible as {
+  const eligibleRows = eligible as {
     resident_id: number;
     room_type: string;
     base_amount: string;
     due_date: string | null;
-  }[]) {
-    const booking = bookingMap.get(row.resident_id) ?? null;
-    const advance = booking ? Number(booking.advance_amount) : 0;
-    const finalAmount = Math.max(0, Number(row.base_amount) - advance);
+  }[];
 
-    const result = await sql`
-      INSERT INTO payments (resident_id, month, amount, due_date)
-      VALUES (
-        ${row.resident_id},
-        ${month}::date,
-        ${finalAmount},
-        ${row.due_date ?? null}
-      )
-      ON CONFLICT (resident_id, month) DO NOTHING
-      RETURNING id
-    `;
+  let generated = 0;
+  const CHUNK_SIZE = 50;
 
-    if (result.length > 0) {
-      generated++;
-      if (booking) await markBookingConverted(booking.id);
-    }
+  for (let i = 0; i < eligibleRows.length; i += CHUNK_SIZE) {
+    const chunk = eligibleRows.slice(i, i + CHUNK_SIZE);
+    
+    const promises = chunk.map(async (row) => {
+      const booking = bookingMap.get(row.resident_id) ?? null;
+      const advance = booking ? Number(booking.advance_amount) : 0;
+      const finalAmount = Math.max(0, Number(row.base_amount) - advance);
+
+      const result = await sql`
+        INSERT INTO payments (resident_id, month, amount, due_date)
+        VALUES (
+          ${row.resident_id},
+          ${month}::date,
+          ${finalAmount},
+          ${row.due_date ?? null}
+        )
+        ON CONFLICT (resident_id, month) DO NOTHING
+        RETURNING id
+      `;
+
+      if (result.length > 0) {
+        if (booking) await markBookingConverted(booking.id);
+        return 1;
+      }
+      return 0;
+    });
+
+    const results = await Promise.all(promises);
+    generated += results.reduce<number>((sum, val) => sum + val, 0);
   }
 
   return generated;
@@ -408,4 +421,37 @@ export async function createAdvancePayment({
  */
 export async function deleteAdvancePaymentForBooking(bookingId: number): Promise<void> {
   await sql`DELETE FROM payments WHERE booking_id = ${bookingId}`;
+}
+
+/**
+ * Creates a manual advance payment row for an existing resident.
+ */
+export async function createManualAdvancePayment({
+  residentId,
+  amount,
+  month,
+  notes,
+}: {
+  residentId: number;
+  amount: number;
+  month: string; // "YYYY-MM-DD"
+  notes?: string;
+}): Promise<{ id: number } | null> {
+  const result = await sql`
+    INSERT INTO payments (resident_id, month, amount, due_date, paid, paid_at, fine_amount, fine_paid, notes)
+    VALUES (
+      ${residentId},
+      ${month}::date,
+      ${amount},
+      NULL,
+      true,
+      NOW(),
+      0,
+      0,
+      ${notes || null}
+    )
+    ON CONFLICT (resident_id, month) DO NOTHING
+    RETURNING id
+  `;
+  return result[0] ? (result[0] as { id: number }) : null;
 }

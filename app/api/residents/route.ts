@@ -1,4 +1,4 @@
-import { getResidents, createResident } from "@/lib/dal/residents";
+import { getResidents, createResident, checkPhoneExists } from "@/lib/dal/residents";
 import { getHostelBySlug } from "@/lib/dal/hostels";
 import { NextRequest } from "next/server";
 
@@ -30,6 +30,17 @@ export async function POST(request: NextRequest) {
 
   if (!name) {
     return Response.json({ error: "name is required" }, { status: 400 });
+  }
+
+  if (!phone || !/^\d{10}$/.test(phone)) {
+    return Response.json({ error: "A valid 10-digit phone number is required" }, { status: 400 });
+  }
+
+  if (phone) {
+    const exists = await checkPhoneExists(phone);
+    if (exists) {
+      return Response.json({ error: "PHONE_EXISTS", message: "A resident with this phone number already exists" }, { status: 409 });
+    }
   }
 
   const resident = await createResident({

@@ -166,6 +166,16 @@ export interface CreateResidentData {
   is_staff?: boolean;
 }
 
+export async function checkPhoneExists(phone: string, excludeId?: number): Promise<boolean> {
+  if (!phone) return false;
+  if (excludeId) {
+    const rows = await sql`SELECT id FROM residents WHERE phone = ${phone} AND id != ${excludeId} LIMIT 1`;
+    return rows.length > 0;
+  }
+  const rows = await sql`SELECT id FROM residents WHERE phone = ${phone} LIMIT 1`;
+  return rows.length > 0;
+}
+
 export async function createResident(data: CreateResidentData): Promise<Resident> {
   const rows = await sql`
     INSERT INTO residents (name, phone, parent_phone, email, id_number, monthly_rate, daily_rate, move_in_date, notes, is_staff)

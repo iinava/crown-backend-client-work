@@ -1,4 +1,4 @@
-import { getResidentById, updateResident, deleteResident } from "@/lib/dal/residents";
+import { getResidentById, updateResident, deleteResident, checkPhoneExists } from "@/lib/dal/residents";
 import { NextRequest } from "next/server";
 
 export async function GET(
@@ -17,6 +17,16 @@ export async function PATCH(
 ) {
   const { id } = await params;
   const body = await request.json();
+
+  if (body.phone !== undefined) {
+    if (!body.phone || !/^\d{10}$/.test(body.phone)) {
+      return Response.json({ error: "A valid 10-digit phone number is required" }, { status: 400 });
+    }
+    const exists = await checkPhoneExists(body.phone, Number(id));
+    if (exists) {
+      return Response.json({ error: "PHONE_EXISTS", message: "A resident with this phone number already exists" }, { status: 409 });
+    }
+  }
 
   // If a bed is being assigned, block if resident is blacklisted
   if (body.bed_id) {

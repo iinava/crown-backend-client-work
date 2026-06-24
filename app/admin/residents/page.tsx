@@ -169,7 +169,11 @@ export default function ResidentsPage() {
         fetchResidents();
       } else {
         const d = await res.json();
-        toast.error(d.error ?? "Failed to save");
+        if (d.error === "PHONE_EXISTS" || (d.error && d.error.includes("phone number already exists"))) {
+          setPhoneError("A resident with this phone number already exists.");
+        } else {
+          toast.error(d.error ?? d.message ?? "Failed to save");
+        }
       }
     } finally {
       setSaving(false);

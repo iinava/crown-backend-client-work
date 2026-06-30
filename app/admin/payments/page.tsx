@@ -38,6 +38,7 @@ interface Payment {
   resident_bed_no?: string | null;
   amount: string;
   fine_amount: string;
+  fine_paid?: string;
   total_due: number;
   due_date: string | null;
   days_overdue: number;
@@ -99,6 +100,30 @@ function PaymentsInner() {
   const [editField, setEditField] = useState<"amount" | "fine_amount">("amount");
   const [editValue, setEditValue] = useState("");
   const [paymentToConfirm, setPaymentToConfirm] = useState<Payment | null>(null);
+
+  const [finesModalOpen, setFinesModalOpen] = useState(false);
+  const [finesList, setFinesList] = useState<Payment[]>([]);
+  const [finesLoading, setFinesLoading] = useState(false);
+
+  async function openFinesModal() {
+    setFinesModalOpen(true);
+    if (hostelLoading) return;
+    setFinesLoading(true);
+    try {
+      const hq = hostelParam ? `&hostel=${hostelParam}` : "";
+      const res = await fetch(`/api/payments?month=${month}-01&paid=true&limit=1000${hq}`);
+      if (!res.ok) throw new Error("fetch failed");
+      const data = await res.json();
+      const list = (data.data || []).filter((p: Payment) => Number(p.fine_paid || 0) > 0);
+      setFinesList(list);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to load fines data");
+    } finally {
+      setFinesLoading(false);
+    }
+  }
+
   // Server-side search + pagination
   const [searchInput, setSearchInput]  = useState("");   // controlled input value
   const [searchQuery, setSearchQuery]  = useState("");   // debounced — sent to API
@@ -489,10 +514,13 @@ function PaymentsInner() {
                   <p className="text-xs text-muted-foreground">Collected</p>
                   <p className="text-base sm:text-xl font-bold truncate">₹{stats.sum_collected.toLocaleString("en-IN")}</p>
                  
-                    <p className="text-[10px] text-warning/80 flex items-center gap-0.5">
+                    <button 
+                      onClick={openFinesModal}
+                      className="text-[10px] text-warning/80 flex items-center gap-0.5 hover:underline cursor-pointer focus:outline-none"
+                    >
                       <Flame className="h-2.5 w-2.5" />
                       incl. ₹{stats.sum_fines_collected.toLocaleString("en-IN")} fines
-                    </p>
+                    </button>
                 
                 </div>
               </CardContent>
@@ -999,6 +1027,42 @@ function PaymentsInner() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Fines Modal ── */}
+      <Dialog open={finesModalOpen} onOpenChange={setFinesModalOpen}>
+        <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Fines Collected ({new Date(month + "-01").toLocaleString('default', { month: 'long', year: 'numeric' })})</DialogTitle>
+            <DialogDescription>
+              Residents who paid fines this month. Total: ₹{stats.sum_fines_collected.toLocaleString("en-IN")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto">
+            {finesLoading ? (
+              <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            ) : finesList.length === 0 ? (
+              <div className="text-center p-8 text-muted-foreground">No fines collected this month.</div>
+            ) : (
+              <div className="space-y-3">
+                {finesList.map(p => (
+                  <div key={p.id} className="flex justify-between items-center bg-muted/30 p-3 rounded-lg border border-border/50">
+                    <div>
+                      <p className="font-medium text-sm">{p.resident_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {p.resident_bed_no ? `Bed ${p.resident_bed_no}` : 'No bed'} • Paid on {p.paid_at ? new Date(p.paid_at).toLocaleDateString() : 'N/A'}
+                      </p>
+                    </div>
+                    <div className="font-bold text-warning flex items-center gap-1">
+                      <IndianRupee className="h-3.5 w-3.5" />
+                      {Number(p.fine_paid).toLocaleString("en-IN")}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

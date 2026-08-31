@@ -15,6 +15,7 @@ import {
   Bell,
   Utensils,
   CalendarDays,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -33,6 +34,7 @@ const navItems = [
   { href: "/admin/notifications", label: "Notifications", icon: Bell },
   { href: "/admin/settings",      label: "Settings",      icon: Settings },
   { href: "/admin/users",     label: "Admin Users",  icon: ShieldCheck },
+  { href: "/admin/info",      label: "Info",         icon: Info },
 ];
 
 export default function AdminSidebar({ className }: { className?: string }) {

@@ -317,7 +317,7 @@ export default function BookingsPage() {
 
       {/* Month filter */}
       <div className="flex items-center gap-3 flex-wrap">
-        <MonthPicker value={filterMonth} onChange={setFilterMonth} />
+        <MonthPicker value={filterMonth} onChange={setFilterMonth} allowFuture />
         <span className="text-sm text-muted-foreground">
           Showing bookings for <span className="font-medium text-foreground">{monthLabel(filterMonth)}</span>
         </span>
@@ -503,7 +503,7 @@ export default function BookingsPage() {
             {/* ── Booking month ── */}
             <div className="space-y-1.5">
               <Label>Booking For Month <span className="text-destructive">*</span></Label>
-              <MonthPicker value={form.for_month} onChange={v => setForm(p => ({ ...p, for_month: v }))} />
+              <MonthPicker value={form.for_month} onChange={v => setForm(p => ({ ...p, for_month: v }))} allowFuture />
             </div>
 
             {/* ── Advance amount + method ── */}

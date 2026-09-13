@@ -636,7 +636,9 @@ function PaymentsInner() {
                 ) : (
                   payments.map((p) => {
                     const fine      = Number(p.fine_amount);
+                    const paidFine  = Number(p.fine_paid || 0);
                     const base      = Number(p.amount);
+                    const effectiveFine = p.paid ? paidFine : fine;
                     const isMarking = markingId === p.id;
 
                     return (
@@ -708,10 +710,10 @@ function PaymentsInner() {
                             <span className="text-muted-foreground/30 text-xs">—</span>
                           ) : p.paid ? (
                             // Paid: show fine as plain text, no editing
-                            fine > 0 ? (
+                            paidFine > 0 ? (
                               <span className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground/60">
                                 <Flame className="h-3 w-3" />
-                                +₹{fine.toLocaleString("en-IN")}
+                                +₹{paidFine.toLocaleString("en-IN")}
                               </span>
                             ) : (
                               <span className="text-muted-foreground/30 text-xs">—</span>
@@ -757,7 +759,7 @@ function PaymentsInner() {
 
                         <TableCell>
                           <span className={`font-semibold text-sm ${p.is_expired && !p.paid ? "text-destructive" : ""}`}>
-                            ₹{Number(p.total_due ?? base).toLocaleString("en-IN")}
+                            ₹{Number(p.total_due ?? (base + effectiveFine)).toLocaleString("en-IN")}
                           </span>
                         </TableCell>
 

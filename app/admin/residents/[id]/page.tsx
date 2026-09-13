@@ -115,28 +115,40 @@ export default async function ResidentDetailPage({
           <p className="text-sm text-muted-foreground">No payment records yet.</p>
         ) : (
           <div className="rounded-md border bg-background divide-y">
-            {payments.map((p) => (
-              <div key={p.id} className="flex items-center justify-between px-4 py-3">
-                <div>
-                  <p className="text-sm font-medium">
-                    {new Date(p.month).toLocaleString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" })}
-                  </p>
-                  {p.paid_at && (
-                    <p className="text-xs text-muted-foreground">
-                      Paid on {new Date(p.paid_at).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" })}
+            {payments.map((p) => {
+              const fine = Number(p.paid ? (p.fine_paid || 0) : (p.fine_amount || 0));
+              const total = Number(p.total_due ?? (Number(p.amount) + fine));
+
+              return (
+                <div key={p.id} className="flex items-center justify-between px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium">
+                      {new Date(p.month).toLocaleString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" })}
                     </p>
-                  )}
+                    {p.paid_at && (
+                      <p className="text-xs text-muted-foreground">
+                        Paid on {new Date(p.paid_at).toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <span className="text-sm font-medium">₹{total.toLocaleString("en-IN")}</span>
+                      {fine > 0 && (
+                        <p className="text-[11px] text-muted-foreground">
+                          ₹{Number(p.amount).toLocaleString("en-IN")} + ₹{fine.toLocaleString("en-IN")} fine
+                        </p>
+                      )}
+                    </div>
+                    {p.paid ? (
+                      <Badge variant="secondary">Paid</Badge>
+                    ) : (
+                      <Badge variant="destructive">Unpaid</Badge>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-medium">₹{Number(p.amount).toLocaleString()}</span>
-                  {p.paid ? (
-                    <Badge variant="secondary">Paid</Badge>
-                  ) : (
-                    <Badge variant="destructive">Unpaid</Badge>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

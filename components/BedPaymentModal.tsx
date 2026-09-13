@@ -175,45 +175,58 @@ export function BedPaymentModal({ open, onOpenChange, residentId, residentName, 
                 )}
               </div>
               
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Fine</p>
-                {editingField === "fine_amount" ? (
-                  <Input
-                    type="number" className="h-8 w-24 text-sm font-semibold text-warning"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onBlur={saveField}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") saveField();
-                      if (e.key === "Escape") setEditingField(null);
-                    }}
-                    autoFocus
-                  />
-                ) : paymentData.paid && Number(paymentData.fine_amount) === 0 ? (
-                  <p className="font-semibold text-lg text-muted-foreground/50">—</p>
-                ) : paymentData.paid ? (
-                  <p className="font-semibold text-lg text-warning flex items-center gap-1">
-                    <Flame className="h-4 w-4" />
-                    +₹{Number(paymentData.fine_amount).toLocaleString()}
-                  </p>
-                ) : (
-                  <div
-                    className="flex items-center gap-1.5 cursor-pointer text-warning hover:text-warning/80 transition-colors group"
-                    onClick={() => startEdit("fine_amount", Number(paymentData.fine_amount))}
-                  >
-                    <p className="font-semibold text-lg flex items-center gap-1">
-                      {Number(paymentData.fine_amount) > 0 && <Flame className="h-4 w-4" />}
-                      {Number(paymentData.fine_amount) > 0 ? `+₹${Number(paymentData.fine_amount).toLocaleString()}` : "—"}
-                    </p>
-                    <Pencil className="h-3.5 w-3.5 opacity-40 group-hover:opacity-100" />
-                  </div>
-                )}
-              </div>
-              
-              <div className="space-y-1 text-right">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Due</p>
-                <p className="font-bold text-xl text-primary">₹{(Number(paymentData.amount) + Number(paymentData.fine_amount)).toLocaleString()}</p>
-              </div>
+              {(() => {
+                const fine = Number(paymentData.fine_amount || 0);
+                const paidFine = Number(paymentData.fine_paid || 0);
+                const effectiveFine = paymentData.paid ? paidFine : fine;
+                const totalDue = Number(paymentData.amount || 0) + effectiveFine;
+
+                return (
+                  <>
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Fine</p>
+                      {editingField === "fine_amount" ? (
+                        <Input
+                          type="number" className="h-8 w-24 text-sm font-semibold text-warning"
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onBlur={saveField}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveField();
+                            if (e.key === "Escape") setEditingField(null);
+                          }}
+                          autoFocus
+                        />
+                      ) : paymentData.paid ? (
+                        paidFine > 0 ? (
+                          <p className="font-semibold text-lg text-warning flex items-center gap-1">
+                            <Flame className="h-4 w-4" />
+                            +₹{paidFine.toLocaleString()}
+                          </p>
+                        ) : (
+                          <p className="font-semibold text-lg text-muted-foreground/50">—</p>
+                        )
+                      ) : (
+                        <div
+                          className="flex items-center gap-1.5 cursor-pointer text-warning hover:text-warning/80 transition-colors group"
+                          onClick={() => startEdit("fine_amount", fine)}
+                        >
+                          <p className="font-semibold text-lg flex items-center gap-1">
+                            {fine > 0 && <Flame className="h-4 w-4" />}
+                            {fine > 0 ? `+₹${fine.toLocaleString()}` : "—"}
+                          </p>
+                          <Pencil className="h-3.5 w-3.5 opacity-40 group-hover:opacity-100" />
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-1 text-right">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Due</p>
+                      <p className="font-bold text-xl text-primary">₹{totalDue.toLocaleString()}</p>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             <div className="flex items-center justify-between">

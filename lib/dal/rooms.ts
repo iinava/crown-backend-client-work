@@ -95,7 +95,7 @@ export async function getRoomWithBeds(roomId: number): Promise<BedWithResident[]
       p.id AS payment_id,
       p.paid AS payment_paid,
       p.amount AS payment_amount,
-      p.fine_amount AS payment_fine
+      COALESCE(CASE WHEN p.paid THEN p.fine_paid ELSE p.fine_amount END, 0) AS payment_fine
     FROM beds b
     LEFT JOIN bed_assignments ba ON ba.bed_id = b.id AND ba.vacated_at IS NULL
     LEFT JOIN residents res ON res.id = ba.resident_id

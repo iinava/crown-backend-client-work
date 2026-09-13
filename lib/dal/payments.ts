@@ -72,7 +72,7 @@ export async function getPayments(filters: {
           LIMIT 1
         )
       ) AS hostel_name,
-      (p.amount + p.fine_amount)::numeric                                                    AS total_due,
+      (p.amount + CASE WHEN p.paid THEN p.fine_paid ELSE p.fine_amount END)::numeric        AS total_due,
       GREATEST(0, (NOW() AT TIME ZONE 'Asia/Kolkata')::date - p.due_date::date)::int         AS days_overdue,
       (p.due_date IS NOT NULL AND (NOW() AT TIME ZONE 'Asia/Kolkata')::date > p.due_date::date AND p.paid = false) AS is_expired,
       (p.booking_id IS NOT NULL)                                                             AS is_advance

@@ -87,6 +87,37 @@ export async function getExpenseSummary(filters: {
   return rows as { category: string; total: number }[];
 }
 
+export interface ExpenseExportRow {
+  expense_id: number;
+  date: string;              // "YYYY-MM-DD"
+  hostel_id: number | null;
+  hostel_name: string | null;
+  category: string;
+  title: string;
+  amount: string;
+  notes: string | null;
+}
+
+/** All expenses in a month, every hostel and category (food included), for Excel export. */
+export async function getExpensesForExport(month: string): Promise<ExpenseExportRow[]> {
+  const rows = await sql`
+    SELECT
+      e.id AS expense_id,
+      to_char(e.date, 'YYYY-MM-DD') AS date,
+      e.hostel_id,
+      h.name AS hostel_name,
+      e.category,
+      e.title,
+      e.amount,
+      e.notes
+    FROM expenses e
+    LEFT JOIN hostels h ON h.id = e.hostel_id
+    WHERE DATE_TRUNC('month', e.date) = DATE_TRUNC('month', ${month}::date)
+    ORDER BY e.hostel_id NULLS LAST, e.date, e.id
+  `;
+  return rows as ExpenseExportRow[];
+}
+
 // ─── Mutations ────────────────────────────────────────────────────────────────
 
 export async function createExpense(fields: {

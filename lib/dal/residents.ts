@@ -218,6 +218,61 @@ export async function updateResident(id: number, data: UpdateResidentData): Prom
   return (rows[0] as Resident) ?? null;
 }
 
+export interface ResidentExportRow {
+  resident_id: number;
+  name: string;
+  phone: string | null;
+  parent_phone: string | null;
+  email: string | null;
+  id_number: string | null;
+  hostel_id: number | null;
+  hostel_name: string | null;
+  room_number: string | null;
+  bed_number: string | null;
+  room_type: string | null;
+  has_active_bed: boolean;
+  monthly_rate: string;
+  daily_rate: string;
+  move_in_date: string | null;   // "YYYY-MM-DD"
+  move_out_date: string | null;
+  is_active: boolean;
+  is_staff: boolean;
+  is_blacklisted: boolean;
+  blacklist_reason: string | null;
+  notes: string | null;
+  created_at: string;            // "YYYY-MM-DD"
+}
+
+/** Every resident (active, checked out and staff) for Excel export, with current or last bed. */
+export async function getResidentsForExport(): Promise<ResidentExportRow[]> {
+  const rows = await sql`
+    SELECT
+      r.id AS resident_id, r.name, r.phone, r.parent_phone, r.email, r.id_number,
+      loc.hostel_id, loc.hostel_name, loc.room_number, loc.bed_number, loc.room_type,
+      COALESCE(loc.is_current, false) AS has_active_bed,
+      r.monthly_rate, r.daily_rate,
+      to_char(r.move_in_date, 'YYYY-MM-DD')  AS move_in_date,
+      to_char(r.move_out_date, 'YYYY-MM-DD') AS move_out_date,
+      r.is_active, r.is_staff, r.is_blacklisted, r.blacklist_reason, r.notes,
+      to_char(r.created_at::timestamptz AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS created_at
+    FROM residents r
+    LEFT JOIN LATERAL (
+      SELECT h.id AS hostel_id, h.name AS hostel_name, rm.number AS room_number,
+             b.number AS bed_number, rm.room_type, (ba.vacated_at IS NULL) AS is_current
+      FROM bed_assignments ba
+      JOIN beds b    ON b.id = ba.bed_id
+      JOIN rooms rm  ON rm.id = b.room_id
+      JOIN floors fl ON fl.id = rm.floor_id
+      JOIN hostels h ON h.id = fl.hostel_id
+      WHERE ba.resident_id = r.id
+      ORDER BY ba.vacated_at DESC NULLS FIRST
+      LIMIT 1
+    ) loc ON true
+    ORDER BY r.is_active DESC, r.name, r.id
+  `;
+  return rows as ResidentExportRow[];
+}
+
 /**
  * Set monthly_rate for every active, non-staff resident.
  * Only affects payments generated after this — existing payment rows are untouched.

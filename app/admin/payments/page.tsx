@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Loader2, AlertCircle, RefreshCw, Check,
   IndianRupee, CheckCircle2, Clock, Flame, Pencil, RotateCcw, Search, X,
-  ChevronLeft, ChevronRight, Plus,
+  ChevronLeft, ChevronRight, Plus, Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -95,6 +95,7 @@ function PaymentsInner() {
   const [loading, setLoading]             = useState(true);
   const [generating, setGenerating]       = useState(false);
   const [recalculating, setRecalculating] = useState(false);
+  const [exporting, setExporting]         = useState(false);
   const [markingId, setMarkingId]         = useState<number | null>(null);
   const [editingAmountId, setEditingAmountId] = useState<number | null>(null);
   const [editField, setEditField] = useState<"amount" | "fine_amount">("amount");
@@ -316,6 +317,30 @@ function PaymentsInner() {
     }
   }
 
+  async function exportPayments() {
+    setExporting(true);
+    try {
+      // Always exports every hostel, regardless of the hostel filter
+      const res = await fetch(`/api/payments/export?month=${month}-01`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Export failed");
+        return;
+      }
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `crown-report-${month}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Export failed");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function recalculateFines() {
     setRecalculating(true);
     try {
@@ -476,6 +501,14 @@ function PaymentsInner() {
               >
                 {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 Generate
+              </Button>
+              <Button
+                variant="outline" size="sm"
+                onClick={exportPayments} disabled={exporting}
+                className="gap-1.5 h-9"
+              >
+                {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Export
               </Button>
             </>
           )}

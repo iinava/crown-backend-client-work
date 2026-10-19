@@ -167,6 +167,111 @@ export async function getPayments(filters: {
   };
 }
 
+export interface PaymentExportRow {
+  payment_id: number;
+  resident_id: number;
+  resident_name: string;
+  phone: string | null;
+  parent_phone: string | null;
+  email: string | null;
+  id_number: string | null;
+  hostel_id: number | null;
+  hostel_name: string | null;
+  room_number: string | null;
+  bed_number: string | null;
+  room_type: string | null;
+  month: string;              // "YYYY-MM"
+  amount: string;
+  fine_amount: string;        // fine still owed (0 once paid)
+  fine_paid: string;          // fine collected at payment time
+  total: string;
+  paid: boolean;
+  is_overdue: boolean;
+  due_date: string | null;    // "YYYY-MM-DD"
+  paid_at: string | null;     // "YYYY-MM-DD HH:MM" IST
+  days_overdue: number;
+  days_billed: number | null;  // dormitory only: days charged, same formula as generateMonthlyPayments
+  is_advance: boolean;
+  booking_id: number | null;
+  monthly_rate: string;
+  daily_rate: string;
+  move_in_date: string | null;
+  move_out_date: string | null;
+  resident_active: boolean;
+  notes: string | null;
+}
+
+/**
+ * Every payment row for one month across all hostels, unpaginated, for Excel export.
+ * Hostel/room come from the resident's current bed, or their most recent one if checked out.
+ * Dates are formatted in SQL so they don't shift with the server timezone.
+ */
+export async function getPaymentsForExport(month: string): Promise<PaymentExportRow[]> {
+  const rows = await sql`
+    SELECT
+      p.id                                           AS payment_id,
+      r.id                                           AS resident_id,
+      r.name                                         AS resident_name,
+      r.phone,
+      r.parent_phone,
+      r.email,
+      r.id_number,
+      loc.hostel_id,
+      loc.hostel_name,
+      loc.room_number,
+      loc.bed_number,
+      loc.room_type,
+      to_char(p.month, 'YYYY-MM')                    AS month,
+      p.amount,
+      CASE WHEN p.paid THEN 0 ELSE p.fine_amount END AS fine_amount,
+      p.fine_paid,
+      (p.amount + CASE WHEN p.paid THEN p.fine_paid ELSE p.fine_amount END)::numeric AS total,
+      p.paid,
+      (p.due_date IS NOT NULL AND p.paid = false
+        AND (NOW() AT TIME ZONE 'Asia/Kolkata')::date > p.due_date::date) AS is_overdue,
+      to_char(p.due_date, 'YYYY-MM-DD')              AS due_date,
+      to_char(p.paid_at::timestamptz AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD HH24:MI') AS paid_at,
+      CASE WHEN p.paid OR p.due_date IS NULL THEN 0
+        ELSE GREATEST(0, (NOW() AT TIME ZONE 'Asia/Kolkata')::date - p.due_date::date)
+      END::int                                       AS days_overdue,
+      CASE WHEN loc.room_type = 'dormitory' THEN
+        GREATEST(0,
+          (DATE_TRUNC('month', p.month) + INTERVAL '1 month - 1 day')::date
+          - GREATEST(
+              DATE_TRUNC('month', p.month)::date,
+              COALESCE(r.move_in_date, DATE_TRUNC('month', p.month)::date)
+            )
+          + 1
+        )
+      END::int                                       AS days_billed,
+      (p.booking_id IS NOT NULL)                     AS is_advance,
+      p.booking_id,
+      r.monthly_rate,
+      r.daily_rate,
+      to_char(r.move_in_date, 'YYYY-MM-DD')          AS move_in_date,
+      to_char(r.move_out_date, 'YYYY-MM-DD')         AS move_out_date,
+      r.is_active                                    AS resident_active,
+      p.notes
+    FROM payments p
+    JOIN residents r ON r.id = p.resident_id
+    LEFT JOIN LATERAL (
+      SELECT h.id AS hostel_id, h.name AS hostel_name, rm.number AS room_number,
+             b.number AS bed_number, rm.room_type
+      FROM bed_assignments ba
+      JOIN beds b      ON b.id = ba.bed_id
+      JOIN rooms rm    ON rm.id = b.room_id
+      JOIN floors fl   ON fl.id = rm.floor_id
+      JOIN hostels h   ON h.id = fl.hostel_id
+      WHERE ba.resident_id = r.id
+      ORDER BY ba.vacated_at DESC NULLS FIRST
+      LIMIT 1
+    ) loc ON true
+    WHERE p.month = ${month}::date
+    ORDER BY r.name, p.id
+  `;
+  return rows as PaymentExportRow[];
+}
+
 export async function getUnpaidThisMonth(hostelId?: number): Promise<Payment[]> {
   const rows = await sql`
     SELECT p.*, r.name AS resident_name,

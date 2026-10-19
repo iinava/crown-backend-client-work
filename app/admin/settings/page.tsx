@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Loader2, Save, IndianRupee, Calendar, Flame, PhoneCall, PhoneOff,
+  Loader2, Save, IndianRupee, Calendar, Flame, PhoneCall, PhoneOff, Users,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -37,6 +37,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [pendingToggle, setPendingToggle] = useState<boolean | null>(null);
+  const [confirmApplyRent, setConfirmApplyRent] = useState(false);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -91,6 +92,29 @@ export default function SettingsPage() {
       setPendingToggle(null);
     }
   }
+
+  async function applyRentToAll() {
+    setSaving("apply_rent");
+    try {
+      const res = await fetch("/api/settings/apply-rent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rate: settings.default_monthly_rate }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`Rent updated for ${data.updated} resident${data.updated === 1 ? "" : "s"}`);
+      } else {
+        toast.error(data.error ?? "Failed to apply rent");
+      }
+    } finally {
+      setSaving(null);
+      setConfirmApplyRent(false);
+    }
+  }
+
+  const rentValue = Number(settings.default_monthly_rate);
+  const rentValid = Number.isFinite(rentValue) && rentValue > 0;
 
   const numericFields = [
     {
@@ -191,6 +215,21 @@ export default function SettingsPage() {
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     {f.description}
                   </p>
+
+                  {f.key === "default_monthly_rate" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-9"
+                      disabled={!rentValid || saving === "apply_rent"}
+                      onClick={() => setConfirmApplyRent(true)}
+                    >
+                      {saving === "apply_rent"
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                        : <Users className="h-3.5 w-3.5 mr-1.5" />}
+                      Apply to all existing residents
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             ))}
@@ -246,6 +285,26 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Apply rent confirmation dialog */}
+      <AlertDialog open={confirmApplyRent} onOpenChange={setConfirmApplyRent}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Set rent to ₹{rentValid ? rentValue.toLocaleString("en-IN") : "—"} for all residents?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This overwrites the monthly rate of every active resident (staff excluded), including
+              anyone with a custom rate, and saves it as the default. It applies to rent generated
+              from now on. Payments already created for this month keep their old amount.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={applyRentToAll}>Yes, apply to all</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Toggle confirmation dialog */}
       <AlertDialog open={pendingToggle !== null} onOpenChange={(open) => { if (!open) setPendingToggle(null); }}>

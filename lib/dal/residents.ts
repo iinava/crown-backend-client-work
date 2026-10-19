@@ -219,6 +219,20 @@ export async function updateResident(id: number, data: UpdateResidentData): Prom
 }
 
 /**
+ * Set monthly_rate for every active, non-staff resident.
+ * Only affects payments generated after this — existing payment rows are untouched.
+ */
+export async function applyMonthlyRateToAll(rate: number): Promise<number> {
+  const rows = await sql`
+    UPDATE residents
+    SET monthly_rate = ${rate}, updated_at = NOW()
+    WHERE is_active = true AND is_staff = false
+    RETURNING id
+  `;
+  return rows.length;
+}
+
+/**
  * Check out a resident:
  * 1. Sets is_active = false and move_out_date on the resident record
  * 2. Vacates all their active bed assignments
